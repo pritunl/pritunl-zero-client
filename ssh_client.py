@@ -16,7 +16,8 @@ Usage: pritunl-ssh [command]
 Commands:
   help      Show help
   version   Print the version and exit
-  config    Reconfigure options"""
+  config    Reconfigure options
+  info      Show current certificate information"""
 
 zero_server = None
 pub_key_path = None
@@ -97,6 +98,13 @@ if not pub_key_path_full.endswith('.pub'):
     exit()
 
 print 'SSH_KEY: ' + pub_key_path
+
+if '--info' in sys.argv[1:] or 'info' in sys.argv[1:]:
+    if not os.path.exists(cert_path_full):
+        print 'ERROR: No SSH certificates available'
+        exit()
+    subprocess.check_call(['ssh-keygen', '-L', '-f', cert_path_full])
+    exit()
 
 with open(conf_path, 'w') as conf_file:
     conf_file.write(json.dumps({
