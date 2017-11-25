@@ -168,6 +168,15 @@ if status_code == 401:
     print 'ERROR: SSH verification request was denied'
     exit()
 
+if status_code == 404:
+    print 'ERROR: SSH verification request expired'
+    exit()
+
+if status_code == 412:
+    print 'ERROR: SSH verification was approved but no ' \
+        'certificates are available'
+    exit()
+
 if status_code != 200:
     print 'ERROR: SSH verification failed with status %d' % status_code
     if resp_data:
