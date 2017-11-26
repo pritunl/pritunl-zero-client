@@ -177,7 +177,7 @@ if status_code == 401:
     exit()
 
 if status_code == 404:
-    print 'ERROR: SSH verification request expired'
+    print 'ERROR: SSH verification request has expired'
     exit()
 
 if status_code == 412:
