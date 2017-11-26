@@ -149,7 +149,10 @@ token_url = zero_server + '/ssh?ssh-token=' + token
 
 print 'OPEN: ' + token_url
 
-subprocess.Popen(['open', token_url])
+try:
+    subprocess.Popen(['open', token_url])
+except:
+    pass
 
 for i in xrange(10):
     req = urllib2.Request(
