@@ -46,7 +46,10 @@ if '--config' not in sys.argv[1:] and \
             print 'WARNING: Failed to parse config file'
 
 if not zero_server:
-    server = raw_input('Enter Pritunl Zero user hostname: ')
+    while True:
+        server = raw_input('Enter Pritunl Zero user hostname: ')
+        if server:
+            break
     server_url = urlparse.urlparse(server)
     zero_server = 'https://%s' % (server_url.netloc or server_url.path)
     changed = True
@@ -69,7 +72,10 @@ if not pub_key_path or not os.path.exists(os.path.expanduser(pub_key_path)):
         ssh_names.append(filename)
         print '[%d] %s' % (len(ssh_names), filename)
 
-    key_input = raw_input('Enter key number or full path to key: ')
+    while True:
+        key_input = raw_input('Enter key number or full path to key: ')
+        if key_input:
+            break
 
     try:
         index = int(key_input)
