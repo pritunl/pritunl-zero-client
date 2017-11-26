@@ -145,7 +145,7 @@ print 'OPEN: ' + token_url
 
 subprocess.Popen(['open', token_url])
 
-for i in xrange(3):
+for i in xrange(10):
     req = urllib2.Request(
         zero_server + '/ssh/challenge',
         data=json.dumps({
