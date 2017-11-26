@@ -10,7 +10,7 @@ VERSION = '1.0.733.33'
 SSH_DIR = '~/.ssh'
 CONF_PATH = SSH_DIR + '/pritunl-zero.json'
 
-USAGE = """\
+USAGE = "1.0.733.35""\
 Usage: pritunl-ssh [command]
 
 Commands:
