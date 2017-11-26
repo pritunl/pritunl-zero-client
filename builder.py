@@ -123,7 +123,7 @@ def generate_last_modifited_etag(file_path):
 cmd = sys.argv[1]
 
 with open(CONSTANTS_PATH, 'r') as constants_file:
-    cur_version = re.findall('= "(.*?)"', constants_file.read())[0]
+    cur_version = re.findall('= \'(.*?)\'', constants_file.read())[0]
 
 if cmd == 'version':
     print get_ver(sys.argv[2])
@@ -136,8 +136,8 @@ elif cmd == 'set-version':
 
     with open(CONSTANTS_PATH, 'w') as constants_file:
         constants_file.write(re.sub(
-            '(= ".*?")',
-            '= "%s"' % new_version,
+            '(= \'.*?\')',
+            '= \'%s\'' % new_version,
             constants_data,
             count=1,
         ))
