@@ -6,7 +6,7 @@ import subprocess
 import urlparse
 import sys
 
-VERSION = '1.0.733.38'
+VERSION = '1.0.736.44'
 SSH_DIR = '~/.ssh'
 CONF_PATH = SSH_DIR + '/pritunl-zero.json'
 
