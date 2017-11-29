@@ -66,7 +66,7 @@ if not pub_key_path or not os.path.exists(os.path.expanduser(pub_key_path)):
     print 'Select SSH key:'
 
     for filename in os.listdir(ssh_dir_path):
-        if '.pub' not in filename:
+        if '.pub' not in filename or '-cert.pub' in filename:
             continue
 
         ssh_names.append(filename)
