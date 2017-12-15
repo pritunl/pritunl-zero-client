@@ -18,6 +18,7 @@ Commands:
   help      Show help
   version   Print the version and exit
   config    Reconfigure options
+  keybase   Configure keybase
   info      Show current certificate information"""
 
 zero_server = None
