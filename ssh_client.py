@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os
 import json
+import urllib
 import urllib2
 import subprocess
 import urlparse
@@ -21,9 +22,21 @@ Commands:
 
 zero_server = None
 pub_key_path = None
+keybase_state = None
+keybase_username = None
 ssh_dir_path = os.path.expanduser(SSH_DIR)
 conf_path = os.path.expanduser(CONF_PATH)
 changed = False
+
+try:
+    keybase_status = subprocess.check_output(
+        ["keybase", "status", "--json"],
+        stderr=subprocess.PIPE,
+    )
+    keybase_data = json.loads(keybase_status)
+    keybase_username = keybase_data['Username']
+except:
+    pass
 
 if '--help' in sys.argv[1:] or 'help' in sys.argv[1:]:
     print USAGE
@@ -42,6 +55,7 @@ if '--config' not in sys.argv[1:] and \
             conf_data = json.loads(conf_data)
             zero_server = conf_data.get('server')
             pub_key_path = conf_data.get('public_key_path')
+            keybase_state = conf_data.get('keybase_state')
         except:
             print 'WARNING: Failed to parse config file'
 
@@ -112,14 +126,222 @@ if '--info' in sys.argv[1:] or 'info' in sys.argv[1:]:
     subprocess.check_call(['ssh-keygen', '-L', '-f', cert_path_full])
     exit()
 
+keybase_associate = False
+keybase_exit = False
+if '--keybase' in sys.argv[1:] or 'keybase' in sys.argv[1:]:
+    if not keybase_username:
+        print 'ERROR: Unable to read keybase status'
+        exit()
+    keybase_associate = True
+    keybase_exit = True
+elif keybase_username and keybase_state is None:
+    keybase_input = raw_input('Authenticate with Keybase? [Y/n]: ')
+    if not keybase_input.startswith('n'):
+        keybase_associate = True
+    else:
+        keybase_state = False
+
+if keybase_associate:
+    req = urllib2.Request(
+        zero_server + '/keybase/associate',
+        data=json.dumps({
+            'username': keybase_username,
+        }),
+    )
+    req.add_header('Content-Type', 'application/json')
+    req.get_method = lambda: 'POST'
+    try:
+        resp = urllib2.urlopen(req)
+        resp_data = resp.read()
+        status_code = resp.getcode()
+    except urllib2.HTTPError as exception:
+        status_code = exception.code
+        resp_data = ''
+
+    if status_code != 200:
+        print 'ERROR: Keybase association failed with status %d' % status_code
+        if resp_data:
+            print resp_data
+        exit()
+
+    token = json.loads(resp_data)['token']
+    message = json.loads(resp_data)['message']
+
+    signature = subprocess.check_output(
+        ["keybase", "sign", "--message", message],
+        stderr=subprocess.PIPE,
+    ).strip()
+    keybase_data = json.loads(keybase_status)
+
+    req = urllib2.Request(
+        zero_server + '/keybase/check',
+        data=json.dumps({
+            'token': token,
+            'signature': signature,
+        }),
+        )
+    req.add_header('Content-Type', 'application/json')
+    req.get_method = lambda: 'PUT'
+    try:
+        resp = urllib2.urlopen(req)
+        resp_data = resp.read()
+        status_code = resp.getcode()
+    except urllib2.HTTPError as exception:
+        status_code = exception.code
+        resp_data = ''
+
+    if status_code == 406:
+        print 'ERROR: Keybase signature is invalid'
+        exit()
+
+    if status_code != 200 and status_code != 404:
+        print 'ERROR: Keybase check failed with status %d' % status_code
+        if resp_data:
+            print resp_data
+        exit()
+
+    if status_code == 404:
+        token_url = zero_server + '/keybase?' + urllib.urlencode({
+            'keybase-token': token,
+            'keybase-sig': signature,
+        })
+
+        print 'OPEN: ' + token_url
+
+        try:
+            subprocess.Popen(['open', token_url])
+        except:
+            pass
+
+        for i in xrange(10):
+            req = urllib2.Request(
+                zero_server + '/keybase/associate/' + token,
+            )
+            req.get_method = lambda: 'GET'
+
+            try:
+                resp = urllib2.urlopen(req)
+                status_code = resp.getcode()
+                resp_data = resp.read()
+            except urllib2.HTTPError as exception:
+                status_code = exception.code
+                resp_data = ''
+
+            if status_code == 205:
+                continue
+            break
+
+        if status_code == 205:
+            print 'ERROR: Keybase association request timed out'
+            exit()
+
+        if status_code == 401:
+            print 'ERROR: Keybase association request was denied'
+            exit()
+
+        if status_code == 404:
+            print 'ERROR: Keybase association request has expired'
+            exit()
+
+        if status_code != 200:
+            print 'ERROR: Keybase association failed with status %d' % \
+                status_code
+            if resp_data:
+                print resp_data
+            exit()
+
+    keybase_state = True
+
 with open(conf_path, 'w') as conf_file:
     conf_file.write(json.dumps({
         'server': zero_server,
         'public_key_path': pub_key_path,
+        'keybase_state': keybase_state,
     }))
+
+if keybase_username and keybase_state:
+    print 'KEYBASE_USERNAME: ' + keybase_username
+
+if keybase_exit:
+    exit()
 
 with open(pub_key_path_full, 'r') as pub_key_file:
     pub_key_data = pub_key_file.read().strip()
+
+if keybase_state:
+    req = urllib2.Request(
+        zero_server + '/keybase/challenge',
+        data=json.dumps({
+            'username': keybase_username,
+            'public_key': pub_key_data,
+        }),
+    )
+    req.add_header('Content-Type', 'application/json')
+    req.get_method = lambda: 'POST'
+    try:
+        resp = urllib2.urlopen(req)
+        resp_data = resp.read()
+        status_code = resp.getcode()
+    except urllib2.HTTPError as exception:
+        status_code = exception.code
+        resp_data = ''
+
+    if status_code != 200:
+        print 'ERROR: Keybase challenge failed with status %d' % status_code
+        if resp_data:
+            print resp_data
+        exit()
+
+    token = json.loads(resp_data)['token']
+    message = json.loads(resp_data)['message']
+
+    signature = subprocess.check_output(
+        ["keybase", "sign", "--message", message],
+        stderr=subprocess.PIPE,
+    ).strip()
+    keybase_data = json.loads(keybase_status)
+
+    req = urllib2.Request(
+        zero_server + '/keybase/challenge',
+        data=json.dumps({
+            'token': token,
+            'signature': signature,
+        }),
+    )
+    req.add_header('Content-Type', 'application/json')
+    req.get_method = lambda: 'PUT'
+    try:
+        resp = urllib2.urlopen(req)
+        resp_data = resp.read()
+        status_code = resp.getcode()
+    except urllib2.HTTPError as exception:
+        status_code = exception.code
+        resp_data = ''
+
+    if status_code == 404:
+        print 'ERROR: Keybase challenge request has expired'
+        exit()
+
+    if status_code == 406:
+        print 'ERROR: Keybase signature is invalid'
+        exit()
+
+    if status_code != 200:
+        print 'ERROR: Keybase challenge failed with status %d' % \
+            status_code
+        if resp_data:
+            print resp_data
+        exit()
+
+    certificates = json.loads(resp_data)['certificates']
+
+    with open(cert_path_full, 'w') as cert_file:
+        cert_file.write('\n'.join(certificates) + '\n')
+
+    print 'CERTIFICATE: ' + cert_path
+    print 'Successfully validated SSH key'
+
+    exit()
 
 req = urllib2.Request(
     zero_server + '/ssh/challenge',
