@@ -6,6 +6,7 @@ import urllib2
 import subprocess
 import urlparse
 import sys
+import datetime
 
 VERSION = '1.0.736.44'
 SSH_DIR = '~/.ssh'
@@ -291,6 +292,27 @@ if keybase_username and keybase_state:
     print 'KEYBASE_USERNAME: ' + keybase_username
 
 if keybase_exit:
+    exit()
+
+cert_valid = False
+if os.path.exists(cert_path_full):
+    cur_date = datetime.datetime.now() + datetime.timedelta(seconds=30)
+
+    status = subprocess.check_output(
+        ['ssh-keygen', '-L', '-f', cert_path_full])
+
+    cert_valid = True
+    for line in status.splitlines():
+        line = line.strip()
+        if line.startswith('Valid:'):
+            line = line.split('to')[-1].strip()
+            valid_to = datetime.datetime.strptime(line, '%Y-%m-%dT%H:%M:%S')
+
+            if cur_date >= valid_to:
+                cert_valid = False
+                break
+
+if cert_valid:
     exit()
 
 with open(pub_key_path_full, 'r') as pub_key_file:
