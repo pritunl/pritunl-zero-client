@@ -133,9 +133,10 @@ if '--keybase' in sys.argv[1:] or 'keybase' in sys.argv[1:]:
     if not keybase_username:
         print 'ERROR: Unable to read keybase status'
         exit()
-    keybase_associate = True
+    keybase_state = None
     keybase_exit = True
-elif keybase_username and keybase_state is None:
+
+if keybase_username and keybase_state is None:
     keybase_input = raw_input('Authenticate with Keybase? [Y/n]: ')
     if not keybase_input.startswith('n'):
         keybase_associate = True
@@ -151,18 +152,29 @@ if keybase_associate:
     )
     req.add_header('Content-Type', 'application/json')
     req.get_method = lambda: 'POST'
+    resp_data = ''
+    resp_error = None
+    status_code = None
     try:
         resp = urllib2.urlopen(req)
         resp_data = resp.read()
         status_code = resp.getcode()
     except urllib2.HTTPError as exception:
         status_code = exception.code
-        resp_data = ''
+        try:
+            resp_data = exception.read()
+            resp_error = str(json.loads(resp_data)['error_msg'])
+        except:
+            pass
 
     if status_code != 200:
-        print 'ERROR: Keybase association failed with status %d' % status_code
-        if resp_data:
-            print resp_data
+        if resp_error:
+            print 'ERROR: ' + resp_error
+        else:
+            print 'ERROR: Keybase association failed with status %d' % \
+                status_code
+            if resp_data:
+                print resp_data
         exit()
 
     token = json.loads(resp_data)['token']
@@ -183,22 +195,28 @@ if keybase_associate:
         )
     req.add_header('Content-Type', 'application/json')
     req.get_method = lambda: 'PUT'
+    resp_data = ''
+    resp_error = None
+    status_code = None
     try:
         resp = urllib2.urlopen(req)
         resp_data = resp.read()
         status_code = resp.getcode()
     except urllib2.HTTPError as exception:
         status_code = exception.code
-        resp_data = ''
-
-    if status_code == 406:
-        print 'ERROR: Keybase signature is invalid'
-        exit()
+        try:
+            resp_data = exception.read()
+            resp_error = str(json.loads(resp_data)['error_msg'])
+        except:
+            pass
 
     if status_code != 200 and status_code != 404:
-        print 'ERROR: Keybase check failed with status %d' % status_code
-        if resp_data:
-            print resp_data
+        if resp_error:
+            print 'ERROR: ' + resp_error
+        else:
+            print 'ERROR: Keybase check failed with status %d' % status_code
+            if resp_data:
+                print resp_data
         exit()
 
     if status_code == 404:
@@ -219,14 +237,20 @@ if keybase_associate:
                 zero_server + '/keybase/associate/' + token,
             )
             req.get_method = lambda: 'GET'
-
+            resp_data = ''
+            resp_error = None
+            status_code = None
             try:
                 resp = urllib2.urlopen(req)
                 status_code = resp.getcode()
                 resp_data = resp.read()
             except urllib2.HTTPError as exception:
                 status_code = exception.code
-                resp_data = ''
+                try:
+                    resp_data = exception.read()
+                    resp_error = str(json.loads(resp_data)['error_msg'])
+                except:
+                    pass
 
             if status_code == 205:
                 continue
@@ -245,10 +269,13 @@ if keybase_associate:
             exit()
 
         if status_code != 200:
-            print 'ERROR: Keybase association failed with status %d' % \
-                status_code
-            if resp_data:
-                print resp_data
+            if resp_error:
+                print 'ERROR: ' + resp_error
+            else:
+                print 'ERROR: Keybase association failed with status %d' % \
+                    status_code
+                if resp_data:
+                    print resp_data
             exit()
 
     keybase_state = True
@@ -279,18 +306,29 @@ if keybase_state:
     )
     req.add_header('Content-Type', 'application/json')
     req.get_method = lambda: 'POST'
+    resp_data = ''
+    resp_error = None
+    status_code = None
     try:
         resp = urllib2.urlopen(req)
         resp_data = resp.read()
         status_code = resp.getcode()
     except urllib2.HTTPError as exception:
         status_code = exception.code
-        resp_data = ''
+        try:
+            resp_data = exception.read()
+            resp_error = str(json.loads(resp_data)['error_msg'])
+        except:
+            pass
 
     if status_code != 200:
-        print 'ERROR: Keybase challenge failed with status %d' % status_code
-        if resp_data:
-            print resp_data
+        if resp_error:
+            print 'ERROR: ' + resp_error
+        else:
+            print 'ERROR: Keybase challenge failed with status %d' % \
+                status_code
+            if resp_data:
+                print resp_data
         exit()
 
     token = json.loads(resp_data)['token']
@@ -311,27 +349,33 @@ if keybase_state:
     )
     req.add_header('Content-Type', 'application/json')
     req.get_method = lambda: 'PUT'
+    resp_data = ''
+    resp_error = None
+    status_code = None
     try:
         resp = urllib2.urlopen(req)
         resp_data = resp.read()
         status_code = resp.getcode()
     except urllib2.HTTPError as exception:
         status_code = exception.code
-        resp_data = ''
+        try:
+            resp_data = exception.read()
+            resp_error = str(json.loads(resp_data)['error_msg'])
+        except:
+            pass
 
     if status_code == 404:
         print 'ERROR: Keybase challenge request has expired'
         exit()
 
-    if status_code == 406:
-        print 'ERROR: Keybase signature is invalid'
-        exit()
-
     if status_code != 200:
-        print 'ERROR: Keybase challenge failed with status %d' % \
-            status_code
-        if resp_data:
-            print resp_data
+        if resp_error:
+            print 'ERROR: ' + resp_error
+        else:
+            print 'ERROR: Keybase challenge failed with status %d' % \
+                status_code
+            if resp_data:
+                print resp_data
         exit()
 
     certificates = json.loads(resp_data)['certificates']
@@ -352,18 +396,29 @@ req = urllib2.Request(
 )
 req.add_header('Content-Type', 'application/json')
 req.get_method = lambda: 'POST'
+resp_data = ''
+resp_error = None
+status_code = None
 try:
     resp = urllib2.urlopen(req)
     resp_data = resp.read()
     status_code = resp.getcode()
 except urllib2.HTTPError as exception:
     status_code = exception.code
-    resp_data = ''
+    try:
+        resp_data = exception.read()
+        resp_error = str(json.loads(resp_data)['error_msg'])
+    except:
+        pass
 
 if status_code != 200:
-    print 'ERROR: SSH challenge request failed with status %d' % status_code
-    if resp_data:
-        print resp_data
+    if resp_error:
+        print 'ERROR: ' + resp_error
+    else:
+        print 'ERROR: SSH challenge request failed with status %d' % \
+            status_code
+        if resp_data:
+            print resp_data
     exit()
 
 token = json.loads(resp_data)['token']
@@ -387,14 +442,20 @@ for i in xrange(10):
     )
     req.add_header('Content-Type', 'application/json')
     req.get_method = lambda: 'PUT'
-
+    resp_data = ''
+    resp_error = None
+    status_code = None
     try:
         resp = urllib2.urlopen(req)
         status_code = resp.getcode()
         resp_data = resp.read()
     except urllib2.HTTPError as exception:
         status_code = exception.code
-        resp_data = ''
+        try:
+            resp_data = exception.read()
+            resp_error = str(json.loads(resp_data)['error_msg'])
+        except:
+            pass
 
     if status_code == 205:
         continue
@@ -418,9 +479,12 @@ if status_code == 412:
     exit()
 
 if status_code != 200:
-    print 'ERROR: SSH verification failed with status %d' % status_code
-    if resp_data:
-        print resp_data
+    if resp_error:
+        print 'ERROR: ' + resp_error
+    else:
+        print 'ERROR: SSH verification failed with status %d' % status_code
+        if resp_data:
+            print resp_data
     exit()
 
 certificates = json.loads(resp_data)['certificates']
