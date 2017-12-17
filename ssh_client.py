@@ -316,6 +316,7 @@ if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
                     break
 
 if cert_valid:
+    print 'Certificate has not expired'
     exit()
 
 with open(pub_key_path_full, 'r') as pub_key_file:
