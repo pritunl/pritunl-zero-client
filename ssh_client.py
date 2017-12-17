@@ -20,7 +20,8 @@ Commands:
   version   Print the version and exit
   config    Reconfigure options
   keybase   Configure keybase
-  info      Show current certificate information"""
+  info      Show current certificate information
+  renew     Force certificate renewal"""
 
 zero_server = None
 pub_key_path = None
@@ -295,22 +296,24 @@ if keybase_exit:
     exit()
 
 cert_valid = False
-if os.path.exists(cert_path_full):
-    cur_date = datetime.datetime.now() + datetime.timedelta(seconds=30)
+if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
+    if os.path.exists(cert_path_full):
+        cur_date = datetime.datetime.now() + datetime.timedelta(seconds=30)
 
-    status = subprocess.check_output(
-        ['ssh-keygen', '-L', '-f', cert_path_full])
+        status = subprocess.check_output(
+            ['ssh-keygen', '-L', '-f', cert_path_full])
 
-    cert_valid = True
-    for line in status.splitlines():
-        line = line.strip()
-        if line.startswith('Valid:'):
-            line = line.split('to')[-1].strip()
-            valid_to = datetime.datetime.strptime(line, '%Y-%m-%dT%H:%M:%S')
+        cert_valid = True
+        for line in status.splitlines():
+            line = line.strip()
+            if line.startswith('Valid:'):
+                line = line.split('to')[-1].strip()
+                valid_to = datetime.datetime.strptime(
+                    line, '%Y-%m-%dT%H:%M:%S')
 
-            if cur_date >= valid_to:
-                cert_valid = False
-                break
+                if cur_date >= valid_to:
+                    cert_valid = False
+                    break
 
 if cert_valid:
     exit()
