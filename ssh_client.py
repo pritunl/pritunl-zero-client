@@ -184,7 +184,6 @@ if keybase_associate:
 
     signature = subprocess.check_output(
         ["keybase", "sign", "--message", message],
-        stderr=subprocess.PIPE,
     ).strip()
     keybase_data = json.loads(keybase_status)
 
@@ -297,23 +296,27 @@ if keybase_exit:
 
 cert_valid = False
 if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
-    if os.path.exists(cert_path_full):
-        cur_date = datetime.datetime.now() + datetime.timedelta(seconds=30)
+    try:
+        if os.path.exists(cert_path_full):
+            cur_date = datetime.datetime.now() + datetime.timedelta(seconds=30)
 
-        status = subprocess.check_output(
-            ['ssh-keygen', '-L', '-f', cert_path_full])
+            status = subprocess.check_output(
+                ['ssh-keygen', '-L', '-f', cert_path_full])
 
-        cert_valid = True
-        for line in status.splitlines():
-            line = line.strip()
-            if line.startswith('Valid:'):
-                line = line.split('to')[-1].strip()
-                valid_to = datetime.datetime.strptime(
-                    line, '%Y-%m-%dT%H:%M:%S')
+            cert_valid = True
+            for line in status.splitlines():
+                line = line.strip()
+                if line.startswith('Valid:'):
+                    line = line.split('to')[-1].strip()
+                    valid_to = datetime.datetime.strptime(
+                        line, '%Y-%m-%dT%H:%M:%S')
 
-                if cur_date >= valid_to:
-                    cert_valid = False
-                    break
+                    if cur_date >= valid_to:
+                        cert_valid = False
+                        break
+    except Exception as exception:
+        print 'WARN: Failed to get certificate expiration'
+        print str(exception)
 
 if cert_valid:
     print 'Certificate has not expired'
@@ -362,7 +365,6 @@ if keybase_state:
 
     signature = subprocess.check_output(
         ["keybase", "sign", "--message", message],
-        stderr=subprocess.PIPE,
     ).strip()
     keybase_data = json.loads(keybase_status)
 
