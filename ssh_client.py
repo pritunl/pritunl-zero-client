@@ -176,7 +176,7 @@ if keybase_associate:
             print 'ERROR: Keybase association failed with status %d' % \
                 status_code
             if resp_data:
-                print resp_data
+                print resp_data.strip()
         exit()
 
     token = json.loads(resp_data)['token']
@@ -217,7 +217,7 @@ if keybase_associate:
         else:
             print 'ERROR: Keybase check failed with status %d' % status_code
             if resp_data:
-                print resp_data
+                print resp_data.strip()
         exit()
 
     if status_code == 404:
@@ -276,7 +276,7 @@ if keybase_associate:
                 print 'ERROR: Keybase association failed with status %d' % \
                     status_code
                 if resp_data:
-                    print resp_data
+                    print resp_data.strip()
             exit()
 
     keybase_state = True
@@ -357,7 +357,7 @@ if keybase_state:
             print 'ERROR: Keybase challenge failed with status %d' % \
                 status_code
             if resp_data:
-                print resp_data
+                print resp_data.strip()
         exit()
 
     token = json.loads(resp_data)['token']
@@ -403,7 +403,7 @@ if keybase_state:
             print 'ERROR: Keybase challenge failed with status %d' % \
                 status_code
             if resp_data:
-                print resp_data
+                print resp_data.strip()
         exit()
 
     certificates = json.loads(resp_data)['certificates']
@@ -446,7 +446,7 @@ if status_code != 200:
         print 'ERROR: SSH challenge request failed with status %d' % \
             status_code
         if resp_data:
-            print resp_data
+            print resp_data.strip()
     exit()
 
 token = json.loads(resp_data)['token']
@@ -501,18 +501,13 @@ if status_code == 404:
     print 'ERROR: SSH verification request has expired'
     exit()
 
-if status_code == 412:
-    print 'ERROR: SSH verification was approved but no ' \
-        'certificates are available'
-    exit()
-
 if status_code != 200:
     if resp_error:
         print 'ERROR: ' + resp_error
     else:
         print 'ERROR: SSH verification failed with status %d' % status_code
         if resp_data:
-            print resp_data
+            print resp_data.strip()
     exit()
 
 certificates = json.loads(resp_data)['certificates']
