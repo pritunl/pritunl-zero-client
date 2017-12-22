@@ -185,7 +185,6 @@ if keybase_associate:
     signature = subprocess.check_output(
         ["keybase", "sign", "--message", message],
     ).strip()
-    keybase_data = json.loads(keybase_status)
 
     req = urllib2.Request(
         zero_server + '/keybase/check',
