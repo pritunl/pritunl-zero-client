@@ -51,7 +51,7 @@ if '--version' in sys.argv[1:] or 'version' in sys.argv[1:]:
 
 if '--config' not in sys.argv[1:] and \
         'config' not in sys.argv[1:] and \
-    os.path.isfile(conf_path):
+        os.path.isfile(conf_path):
     with open(conf_path, 'r') as conf_file:
         conf_data = conf_file.read()
         try:
