@@ -11,6 +11,7 @@ import datetime
 VERSION = '1.0.755.26'
 SSH_DIR = '~/.ssh'
 CONF_PATH = SSH_DIR + '/pritunl-zero.json'
+DEF_KNOWN_HOSTS_PATH = '~/.ssh/known_hosts'
 
 USAGE = """\
 Usage: pritunl-ssh [command]
@@ -59,6 +60,7 @@ if '--config' not in sys.argv[1:] and \
             zero_server = conf_data.get('server')
             pub_key_path = conf_data.get('public_key_path')
             keybase_state = conf_data.get('keybase_state')
+            known_hosts_path = conf_data.get('known_hosts_path')
         except:
             print 'WARNING: Failed to parse config file'
 
@@ -285,6 +287,7 @@ with open(conf_path, 'w') as conf_file:
         'server': zero_server,
         'public_key_path': pub_key_path,
         'keybase_state': keybase_state,
+        'known_hosts_path': known_hosts_path,
     }))
 
 if keybase_username and keybase_state:
@@ -509,10 +512,35 @@ if status_code != 200:
             print resp_data.strip()
     exit()
 
-certificates = json.loads(resp_data)['certificates']
+cert_data = json.loads(resp_data)
+certificates = cert_data['certificates']
+cert_authorities = cert_data.get('certificate_authorities')
 
 with open(cert_path_full, 'w') as cert_file:
     cert_file.write('\n'.join(certificates) + '\n')
 
 print 'CERTIFICATE: ' + cert_path
-print 'Successfully validated SSH key'
+
+if cert_authorities:
+    print 'KNOWN_HOSTS: ' + (known_hosts_path or DEF_KNOWN_HOSTS_PATH)
+
+    known_hosts_path = os.path.expanduser(
+        known_hosts_path or DEF_KNOWN_HOSTS_PATH)
+    known_hosts_data = ''
+
+    for cert_authority in cert_authorities:
+        known_hosts_data += cert_authority + ' # pritunl-zero\n'
+
+    if os.path.exists(known_hosts_path):
+        with open(known_hosts_path, 'r') as known_file:
+            for line in known_file.readlines():
+                if line.strip().endswith('# pritunl-zero'):
+                    continue
+                known_hosts_data += line
+
+    with open(known_hosts_path, 'w') as known_file:
+        known_file.write(known_hosts_data)
+
+    print 'Successfully validated SSH key with certificate authority'
+else:
+    print 'Successfully validated SSH key'
