@@ -521,26 +521,26 @@ with open(cert_path_full, 'w') as cert_file:
 
 print 'CERTIFICATE: ' + cert_path
 
-if cert_authorities:
+known_hosts_modified = False
+known_hosts_path = os.path.expanduser(
+    known_hosts_path or DEF_KNOWN_HOSTS_PATH)
+known_hosts_data = ''
+
+for cert_authority in cert_authorities:
+    known_hosts_modified = True
+    known_hosts_data += cert_authority + ' # pritunl-zero\n'
+
+if os.path.exists(known_hosts_path):
+    with open(known_hosts_path, 'r') as known_file:
+        for line in known_file.readlines():
+            if line.strip().endswith('# pritunl-zero'):
+                known_hosts_modified = True
+                continue
+            known_hosts_data += line
+
+if known_hosts_modified:
     print 'KNOWN_HOSTS: ' + (known_hosts_path or DEF_KNOWN_HOSTS_PATH)
-
-    known_hosts_path = os.path.expanduser(
-        known_hosts_path or DEF_KNOWN_HOSTS_PATH)
-    known_hosts_data = ''
-
-    for cert_authority in cert_authorities:
-        known_hosts_data += cert_authority + ' # pritunl-zero\n'
-
-    if os.path.exists(known_hosts_path):
-        with open(known_hosts_path, 'r') as known_file:
-            for line in known_file.readlines():
-                if line.strip().endswith('# pritunl-zero'):
-                    continue
-                known_hosts_data += line
-
     with open(known_hosts_path, 'w') as known_file:
         known_file.write(known_hosts_data)
 
-    print 'Successfully validated SSH key with certificate authority'
-else:
-    print 'Successfully validated SSH key'
+print 'Successfully validated SSH key'
