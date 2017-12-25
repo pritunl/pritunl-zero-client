@@ -518,7 +518,7 @@ if status_code != 200:
 cert_data = json.loads(resp_data)
 certificates = cert_data['certificates']
 cert_authorities = cert_data.get('certificate_authorities')
-strict_host_checking = cert_data.get('strict_host_checking')
+cert_hosts = cert_data.get('hosts')
 
 with open(cert_path_full, 'w') as cert_file:
     cert_file.write('\n'.join(certificates) + '\n')
@@ -553,15 +553,18 @@ ssh_config_path = os.path.expanduser(
 ssh_config_data = ''
 
 if os.path.exists(ssh_config_path):
-    strict_host_skip = 0
+    host_skip = 0
     with open(ssh_config_path, 'r') as config_file:
         for line in config_file.readlines():
-            if strict_host_skip or line.startswith('# pritunl-zero'):
-                ssh_config_modified = True
-                if strict_host_skip > 1:
-                    strict_host_skip = 0
+            if host_skip:
+                if host_skip > 1 and not line.startswith('	'):
+                    host_skip = 0
                 else:
-                    strict_host_skip += 1
+                    host_skip += 1
+                    continue
+            if line.startswith('# pritunl-zero'):
+                ssh_config_modified = True
+                host_skip = 1
                 continue
             ssh_config_data += line
 
@@ -571,11 +574,20 @@ if ssh_config_data and not ssh_config_data.endswith('\n\n'):
     else:
         ssh_config_data += '\n\n'
 
-for strict_host in strict_host_checking:
+for cert_host in cert_hosts or []:
     ssh_config_modified = True
-    ssh_config_data += \
-        '# pritunl-zero\nHost %s\n	StrictHostKeyChecking yes\n' % \
-        strict_host
+    ssh_config_data += '# pritunl-zero\nHost %s\n' % cert_host['domain']
+
+    if cert_host['strict_host_checking']:
+        ssh_config_data += '	StrictHostKeyChecking yes\n'
+
+    if cert_host['proxy_host']:
+        ssh_config_data += '	ProxyJump %s\n' % cert_host['proxy_host']
+
+    if cert_host['proxy_host'] and cert_host['strict_host_checking']:
+        ssh_config_data += '# pritunl-zero\nHost %s\n' % \
+            cert_host['proxy_host'].split('@', 1)[-1]
+        ssh_config_data += '	StrictHostKeyChecking yes\n'
 
 if ssh_config_modified:
     print 'SSH_CONFIG: ' + (ssh_config_path or DEF_SSH_CONF_PATH)
