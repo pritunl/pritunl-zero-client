@@ -9,6 +9,10 @@ import requests
 import os
 import zlib
 import werkzeug.http
+import getpass
+import base64
+import Crypto.Cipher.AES
+import Crypto.Protocol.KDF
 
 CONSTANTS_PATH = 'ssh_client.py'
 STABLE_PACUR_PATH = '../pritunl-pacur'
@@ -19,9 +23,80 @@ REPO_NAME = 'pritunl-zero-client'
 RELEASE_NAME = 'Pritunl Zero Client'
 
 cur_date = datetime.datetime.utcnow()
+cmd = sys.argv[1]
+
+def aes_encrypt(passphrase, data):
+    enc_salt = os.urandom(32)
+    enc_iv = os.urandom(16)
+    enc_key = Crypto.Protocol.KDF.PBKDF2(
+        password=passphrase,
+        salt=enc_salt,
+        dkLen=32,
+        count=1000,
+    )
+
+    data += '\x00' * (16 - (len(data) % 16))
+
+    chiper = Crypto.Cipher.AES.new(
+        enc_key,
+        Crypto.Cipher.AES.MODE_CBC,
+        enc_iv,
+    )
+    enc_data = chiper.encrypt(data)
+
+    return '\n'.join([
+        base64.b64encode(enc_salt),
+        base64.b64encode(enc_iv),
+        base64.b64encode(enc_data),
+    ])
+
+def aes_decrypt(passphrase, data):
+    data = data.split('\n')
+    if len(data) < 3:
+        raise ValueError('Invalid encryption data')
+
+    enc_salt = base64.b64decode(data[0])
+    enc_iv = base64.b64decode(data[1])
+    enc_data = base64.b64decode(data[2])
+    enc_key = Crypto.Protocol.KDF.PBKDF2(
+        password=passphrase,
+        salt=enc_salt,
+        dkLen=32,
+        count=1000,
+    )
+
+    chiper = Crypto.Cipher.AES.new(
+        enc_key,
+        Crypto.Cipher.AES.MODE_CBC,
+        enc_iv,
+    )
+    data = chiper.decrypt(enc_data)
+
+    return data.replace('\x00', '')
+
+passphrase = getpass.getpass('Enter passphrase: ')
+
+if cmd == 'encrypt':
+    passphrase2 = getpass.getpass('Enter passphrase: ')
+
+    if passphrase != passphrase2:
+        print 'ERROR: Passphrase mismatch'
+        sys.exit(1)
+
+    with open(BUILD_KEYS_PATH, 'r') as build_keys_file:
+        data = build_keys_file.read().strip()
+
+    enc_data = aes_encrypt(passphrase, data)
+
+    with open(BUILD_KEYS_PATH, 'w') as build_keys_file:
+        build_keys_file.write(enc_data)
+
+    sys.exit(0)
 
 with open(BUILD_KEYS_PATH, 'r') as build_keys_file:
-    build_keys = json.loads(build_keys_file.read().strip())
+    enc_data = build_keys_file.read()
+    data = aes_decrypt(passphrase, enc_data)
+    build_keys = json.loads(data.strip())
     github_owner = build_keys['github_owner']
     github_token = build_keys['github_token']
     gitlab_token = build_keys['gitlab_token']
@@ -120,15 +195,13 @@ def generate_last_modifited_etag(file_path):
         zlib.adler32(file_name) & 0xffffffff,
     ))
 
-cmd = sys.argv[1]
-
 with open(CONSTANTS_PATH, 'r') as constants_file:
     cur_version = re.findall('= \'(.*?)\'', constants_file.read())[0]
 
 if cmd == 'version':
     print get_ver(sys.argv[2])
 
-elif cmd == 'set-version':
+if cmd == 'set-version':
     new_version = get_ver(sys.argv[2])
 
     with open(CONSTANTS_PATH, 'r') as constants_file:
@@ -218,7 +291,7 @@ elif cmd == 'set-version':
         sys.exit(1)
 
 
-elif cmd == 'build' or cmd == 'build-test':
+if cmd == 'build' or cmd == 'build-test' or cmd == 'build-upload':
     if cmd == 'build':
         pacur_path = STABLE_PACUR_PATH
     else:
@@ -264,7 +337,7 @@ elif cmd == 'build' or cmd == 'build-test':
             cwd=pacur_path,
         )
 
-elif cmd == 'upload' or cmd == 'upload-test':
+if cmd == 'upload' or cmd == 'upload-test' or cmd == 'build-upload':
     if cmd == 'upload':
         mirror_urls = mirror_url
         pacur_path = STABLE_PACUR_PATH
