@@ -8,7 +8,7 @@ import urlparse
 import sys
 import datetime
 
-VERSION = '1.0.762.96'
+VERSION = '1.0.762.97'
 SSH_DIR = '~/.ssh'
 CONF_PATH = SSH_DIR + '/pritunl-zero.json'
 DEF_KNOWN_HOSTS_PATH = '~/.ssh/known_hosts'
