@@ -250,6 +250,7 @@ if cmd == 'set-version':
 
     subprocess.check_call(['git', 'reset', 'HEAD', '.'])
     subprocess.check_call(['git', 'add', CONSTANTS_PATH])
+    subprocess.check_call(['git', 'add', CONSTANTS_PATH2])
     subprocess.check_call(['git', 'commit', '-S', '-m', 'Create new release'])
     subprocess.check_call(['git', 'push'])
 
