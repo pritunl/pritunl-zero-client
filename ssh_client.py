@@ -8,7 +8,9 @@ import urlparse
 import sys
 import datetime
 
-VERSION = '1.0.755.26'
+# ssh -L 8000:localhost:8000 ec2-user@
+
+VERSION = '1.0.762.97'
 SSH_DIR = '~/.ssh'
 CONF_PATH = SSH_DIR + '/pritunl-zero.json'
 DEF_KNOWN_HOSTS_PATH = '~/.ssh/known_hosts'
@@ -454,13 +456,13 @@ if status_code != 200:
             status_code
         if resp_data:
             print resp_data.strip()
-    exit()
+    sys.exit(0)
 
 token = json.loads(resp_data)['token']
 
 token_url = zero_server + '/ssh?ssh-token=' + token
 
-print 'OPEN: ' + token_url
+print 'OPEN: ' + token_url # cmd + double click
 
 try:
     subprocess.Popen(['open', token_url])
