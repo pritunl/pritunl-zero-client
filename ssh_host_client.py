@@ -11,7 +11,7 @@ import threading
 import socket
 import BaseHTTPServer
 
-VERSION = '1.0.762.97'
+VERSION = '1.0.762.98'
 CONF_PATH = '/etc/pritunl-ssh-host.json'
 DEF_SSH_CONF_PATH = '/etc/ssh/sshd_config'
 DEF_PUB_KEY_CONF_PATH = '/etc/ssh/ssh_host_rsa_key.pub'
