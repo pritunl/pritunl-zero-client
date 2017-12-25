@@ -12,6 +12,7 @@ VERSION = '1.0.755.26'
 SSH_DIR = '~/.ssh'
 CONF_PATH = SSH_DIR + '/pritunl-zero.json'
 DEF_KNOWN_HOSTS_PATH = '~/.ssh/known_hosts'
+DEF_SSH_CONF_PATH = '~/.ssh/config'
 
 USAGE = """\
 Usage: pritunl-ssh [command]
@@ -61,6 +62,7 @@ if '--config' not in sys.argv[1:] and \
             pub_key_path = conf_data.get('public_key_path')
             keybase_state = conf_data.get('keybase_state')
             known_hosts_path = conf_data.get('known_hosts_path')
+            ssh_config_path = conf_data.get('ssh_config_path')
         except:
             print 'WARNING: Failed to parse config file'
 
@@ -288,6 +290,7 @@ with open(conf_path, 'w') as conf_file:
         'public_key_path': pub_key_path,
         'keybase_state': keybase_state,
         'known_hosts_path': known_hosts_path,
+        'ssh_config_path': ssh_config_path,
     }))
 
 if keybase_username and keybase_state:
@@ -515,6 +518,7 @@ if status_code != 200:
 cert_data = json.loads(resp_data)
 certificates = cert_data['certificates']
 cert_authorities = cert_data.get('certificate_authorities')
+strict_host_checking = cert_data.get('strict_host_checking')
 
 with open(cert_path_full, 'w') as cert_file:
     cert_file.write('\n'.join(certificates) + '\n')
@@ -542,5 +546,40 @@ if known_hosts_modified:
     print 'KNOWN_HOSTS: ' + (known_hosts_path or DEF_KNOWN_HOSTS_PATH)
     with open(known_hosts_path, 'w') as known_file:
         known_file.write(known_hosts_data)
+
+ssh_config_modified = False
+ssh_config_path = os.path.expanduser(
+    ssh_config_path or DEF_SSH_CONF_PATH)
+ssh_config_data = ''
+
+if os.path.exists(ssh_config_path):
+    strict_host_skip = 0
+    with open(ssh_config_path, 'r') as config_file:
+        for line in config_file.readlines():
+            if strict_host_skip or line.startswith('# pritunl-zero'):
+                ssh_config_modified = True
+                if strict_host_skip > 1:
+                    strict_host_skip = 0
+                else:
+                    strict_host_skip += 1
+                continue
+            ssh_config_data += line
+
+if ssh_config_data and not ssh_config_data.endswith('\n\n'):
+    if ssh_config_data.endswith('\n'):
+        ssh_config_data += '\n'
+    else:
+        ssh_config_data += '\n\n'
+
+for strict_host in strict_host_checking:
+    ssh_config_modified = True
+    ssh_config_data += \
+        '# pritunl-zero\nHost %s\n	StrictHostKeyChecking yes\n' % \
+        strict_host
+
+if ssh_config_modified:
+    print 'SSH_CONFIG: ' + (ssh_config_path or DEF_SSH_CONF_PATH)
+    with open(ssh_config_path, 'w') as config_file:
+        config_file.write(ssh_config_data)
 
 print 'Successfully validated SSH key'
