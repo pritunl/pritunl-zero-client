@@ -15,10 +15,11 @@ import Crypto.Cipher.AES
 import Crypto.Protocol.KDF
 
 CONSTANTS_PATH = 'ssh_client.py'
+CONSTANTS_PATH2 = 'ssh_host_client.py'
 STABLE_PACUR_PATH = '../pritunl-pacur'
 TEST_PACUR_PATH = '../pritunl-pacur-test'
 BUILD_KEYS_PATH = 'build_keys.json'
-BUILD_TARGETS = ('pritunl-ssh',)
+BUILD_TARGETS = ('pritunl-ssh', 'pritunl-ssh-host')
 REPO_NAME = 'pritunl-zero-client'
 RELEASE_NAME = 'Pritunl Zero Client'
 
@@ -126,7 +127,7 @@ def post_git_asset(release_id, file_name, file_path):
                 'name': file_name,
             },
             data=open(file_path, 'rb').read(),
-            )
+        )
 
         if response.status_code == 201:
             return
@@ -215,6 +216,16 @@ if cmd == 'set-version':
             count=1,
         ))
 
+    with open(CONSTANTS_PATH2, 'r') as constants_file:
+        constants_data = constants_file.read()
+
+    with open(CONSTANTS_PATH2, 'w') as constants_file:
+        constants_file.write(re.sub(
+            '(= \'.*?\')',
+            '= \'%s\'' % new_version,
+            constants_data,
+            count=1,
+        ))
 
     # Check for duplicate version
     response = requests.get(
