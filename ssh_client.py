@@ -8,8 +8,6 @@ import urlparse
 import sys
 import datetime
 
-# ssh -L 8000:localhost:8000 ec2-user@
-
 VERSION = '1.0.762.97'
 SSH_DIR = '~/.ssh'
 CONF_PATH = SSH_DIR + '/pritunl-zero.json'
@@ -462,7 +460,7 @@ token = json.loads(resp_data)['token']
 
 token_url = zero_server + '/ssh?ssh-token=' + token
 
-print 'OPEN: ' + token_url # cmd + double click
+print 'OPEN: ' + token_url
 
 try:
     subprocess.Popen(['open', token_url])
