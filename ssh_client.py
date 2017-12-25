@@ -29,6 +29,8 @@ zero_server = None
 pub_key_path = None
 keybase_state = None
 keybase_username = None
+known_hosts_path = None
+ssh_config_path = None
 ssh_dir_path = os.path.expanduser(SSH_DIR)
 conf_path = os.path.expanduser(CONF_PATH)
 changed = False
@@ -45,11 +47,11 @@ except:
 
 if '--help' in sys.argv[1:] or 'help' in sys.argv[1:]:
     print USAGE
-    exit()
+    sys.exit(0)
 
 if '--version' in sys.argv[1:] or 'version' in sys.argv[1:]:
     print 'pritunl-ssh v' + VERSION
-    exit()
+    sys.exit(0)
 
 if '--config' not in sys.argv[1:] and \
         'config' not in sys.argv[1:] and \
@@ -80,7 +82,7 @@ print 'SERVER: ' + zero_server
 if not pub_key_path or not os.path.exists(os.path.expanduser(pub_key_path)):
     if not os.path.exists(ssh_dir_path):
         print 'ERROR: No SSH keys found, run "ssh-keygen" to create a key'
-        exit()
+        sys.exit(0)
 
     ssh_names = []
 
@@ -118,27 +120,27 @@ cert_path = pub_key_path.rsplit('.pub', 1)[0] + '-cert.pub'
 cert_path_full = os.path.expanduser(cert_path)
 if not os.path.exists(pub_key_path_full):
     print 'ERROR: Selected SSH key does not exist'
-    exit()
+    sys.exit(0)
 
 if not pub_key_path_full.endswith('.pub'):
     print 'ERROR: SSH key path must end with .pub'
-    exit()
+    sys.exit(0)
 
 print 'SSH_KEY: ' + pub_key_path
 
 if '--info' in sys.argv[1:] or 'info' in sys.argv[1:]:
     if not os.path.exists(cert_path_full):
         print 'ERROR: No SSH certificates available'
-        exit()
+        sys.exit(0)
     subprocess.check_call(['ssh-keygen', '-L', '-f', cert_path_full])
-    exit()
+    sys.exit(0)
 
 keybase_associate = False
 keybase_exit = False
 if '--keybase' in sys.argv[1:] or 'keybase' in sys.argv[1:]:
     if not keybase_username:
         print 'ERROR: Unable to read keybase status'
-        exit()
+        sys.exit(0)
     keybase_state = None
     keybase_exit = True
 
@@ -181,7 +183,7 @@ if keybase_associate:
                 status_code
             if resp_data:
                 print resp_data.strip()
-        exit()
+        sys.exit(0)
 
     token = json.loads(resp_data)['token']
     message = json.loads(resp_data)['message']
@@ -221,7 +223,7 @@ if keybase_associate:
             print 'ERROR: Keybase check failed with status %d' % status_code
             if resp_data:
                 print resp_data.strip()
-        exit()
+        sys.exit(0)
 
     if status_code == 404:
         token_url = zero_server + '/keybase?' + urllib.urlencode({
@@ -262,15 +264,15 @@ if keybase_associate:
 
         if status_code == 205:
             print 'ERROR: Keybase association request timed out'
-            exit()
+            sys.exit(0)
 
         if status_code == 401:
             print 'ERROR: Keybase association request was denied'
-            exit()
+            sys.exit(0)
 
         if status_code == 404:
             print 'ERROR: Keybase association request has expired'
-            exit()
+            sys.exit(0)
 
         if status_code != 200:
             if resp_error:
@@ -280,7 +282,7 @@ if keybase_associate:
                     status_code
                 if resp_data:
                     print resp_data.strip()
-            exit()
+            sys.exit(0)
 
     keybase_state = True
 
@@ -297,7 +299,7 @@ if keybase_username and keybase_state:
     print 'KEYBASE_USERNAME: ' + keybase_username
 
 if keybase_exit:
-    exit()
+    sys.exit(0)
 
 cert_valid = False
 if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
@@ -325,7 +327,7 @@ if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
 
 if cert_valid:
     print 'Certificate has not expired'
-    exit()
+    sys.exit(0)
 
 with open(pub_key_path_full, 'r') as pub_key_file:
     pub_key_data = pub_key_file.read().strip()
@@ -363,7 +365,7 @@ if keybase_state:
                 status_code
             if resp_data:
                 print resp_data.strip()
-        exit()
+        sys.exit(0)
 
     token = json.loads(resp_data)['token']
     message = json.loads(resp_data)['message']
@@ -399,7 +401,7 @@ if keybase_state:
 
     if status_code == 404:
         print 'ERROR: Keybase challenge request has expired'
-        exit()
+        sys.exit(0)
 
     if status_code != 200:
         if resp_error:
@@ -409,7 +411,7 @@ if keybase_state:
                 status_code
             if resp_data:
                 print resp_data.strip()
-        exit()
+        sys.exit(0)
 
     certificates = json.loads(resp_data)['certificates']
 
@@ -419,7 +421,7 @@ if keybase_state:
     print 'CERTIFICATE: ' + cert_path
     print 'Successfully validated SSH key'
 
-    exit()
+    sys.exit(0)
 
 req = urllib2.Request(
     zero_server + '/ssh/challenge',
@@ -496,15 +498,15 @@ for i in xrange(10):
 
 if status_code == 205:
     print 'ERROR: SSH verification request timed out'
-    exit()
+    sys.exit(0)
 
 if status_code == 401:
     print 'ERROR: SSH verification request was denied'
-    exit()
+    sys.exit(0)
 
 if status_code == 404:
     print 'ERROR: SSH verification request has expired'
-    exit()
+    sys.exit(0)
 
 if status_code != 200:
     if resp_error:
@@ -513,7 +515,7 @@ if status_code != 200:
         print 'ERROR: SSH verification failed with status %d' % status_code
         if resp_data:
             print resp_data.strip()
-    exit()
+    sys.exit(0)
 
 cert_data = json.loads(resp_data)
 certificates = cert_data['certificates']
