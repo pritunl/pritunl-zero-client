@@ -16,7 +16,7 @@ try:
 except:
     HAS_BOTO = False
 
-VERSION = '1.0.763.29'
+VERSION = '1.0.763.39'
 CONF_PATH = '/etc/pritunl-ssh-host.json'
 DEF_SSH_CONF_PATH = '/etc/ssh/sshd_config'
 DEF_PUB_KEY_CONF_PATH = '/etc/ssh/ssh_host_rsa_key.pub'
