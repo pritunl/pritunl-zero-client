@@ -97,6 +97,13 @@ if not hostname:
 with open(pub_key_path, 'r') as ssh_file:
     public_key = ssh_file.read().strip()
 
+if '--info' in sys.argv[1:] or 'info' in sys.argv[1:]:
+    if not os.path.exists(cert_path):
+        print 'ERROR: No SSH certificates available'
+        sys.exit(0)
+    subprocess.check_call(['ssh-keygen', '-L', '-f', cert_path])
+    sys.exit(0)
+
 cert_valid = False
 if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
     try:
