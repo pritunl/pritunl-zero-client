@@ -41,11 +41,11 @@ conf_public_key_path = None
 conf_ssh_config_path = None
 
 if '--help' in sys.argv[1:] or 'help' in sys.argv[1:]:
-    print USAGE
+    print(USAGE)
     sys.exit(0)
 
 if '--version' in sys.argv[1:] or 'version' in sys.argv[1:]:
-    print 'pritunl-ssh-host v' + VERSION
+    print('pritunl-ssh-host v' + VERSION)
     sys.exit(0)
 
 if os.path.isfile(CONF_PATH):
@@ -124,8 +124,8 @@ with open(pub_key_path, 'r') as ssh_file:
 
 if '--info' in sys.argv[1:] or 'info' in sys.argv[1:]:
     if not os.path.exists(cert_path):
-        print 'ERROR: No SSH certificates available'
-        sys.exit(0)
+        print('ERROR: No SSH certificates available')
+        sys.exit(1)
     subprocess.check_call(['ssh-keygen', '-L', '-f', cert_path])
     sys.exit(0)
 
@@ -215,7 +215,7 @@ if status_code != 200:
             status_code)
         if resp_data:
             print(resp_data.strip())
-    exit()
+    sys.exit(1)
 
 certificates = json.loads(resp_data)['certificates']
 
