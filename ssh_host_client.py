@@ -16,12 +16,37 @@ CONF_PATH = '/etc/pritunl-ssh-host.json'
 DEF_SSH_CONF_PATH = '/etc/ssh/sshd_config'
 DEF_PUB_KEY_CONF_PATH = '/etc/ssh/ssh_host_rsa_key.pub'
 
+USAGE = """\
+Usage: pritunl-ssh-host [command]
+
+Commands:
+  help             Show help
+  version          Print the version and exit
+  renew            Force certificate renewal
+  info             Show current certificate information
+  config           Set configuration options
+    hostname         Set server hostname
+    server           Set Pritunl Zero server hostname
+    clear-tokens     Remove all tokens
+    add-token        Add token
+    remove-token     Remove token
+    ssh-config-path  Set SSH server configuration path
+    public-key-path  Set SSH public key path"""
+
 conf_exists = False
 conf_hostname = None
 conf_tokens = None
 conf_server = None
 conf_public_key_path = None
 conf_ssh_config_path = None
+
+if '--help' in sys.argv[1:] or 'help' in sys.argv[1:]:
+    print USAGE
+    sys.exit(0)
+
+if '--version' in sys.argv[1:] or 'version' in sys.argv[1:]:
+    print 'pritunl-ssh-host v' + VERSION
+    sys.exit(0)
 
 if os.path.isfile(CONF_PATH):
     conf_exists = True
