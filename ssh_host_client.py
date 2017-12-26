@@ -10,6 +10,11 @@ import subprocess
 import threading
 import socket
 import BaseHTTPServer
+try:
+    import boto3
+    HAS_BOTO = True
+except:
+    HAS_BOTO = False
 
 VERSION = '1.0.763.22'
 CONF_PATH = '/etc/pritunl-ssh-host.json'
@@ -31,7 +36,12 @@ Commands:
     add-token        Add token
     remove-token     Remove token
     ssh-config-path  Set SSH server configuration path
-    public-key-path  Set SSH public key path"""
+    public-key-path  Set SSH public key path
+    aws-access-key   Set AWS access key
+    aws-secret-key   Set AWS secret key
+    route-53-zone    Set Route 53 zone for auto DNS
+    public-address   Set public IP address for Route 53
+    public-address6  Set public IPv6 address for Route 53"""
 
 conf_exists = False
 conf_hostname = None
@@ -39,6 +49,11 @@ conf_tokens = None
 conf_server = None
 conf_public_key_path = None
 conf_ssh_config_path = None
+conf_aws_access_key = None
+conf_aws_secret_key = None
+conf_route_53_zone = None
+conf_public_address = None
+conf_public_address6 = None
 
 if '--help' in sys.argv[1:] or 'help' in sys.argv[1:]:
     print(USAGE)
@@ -58,6 +73,11 @@ if os.path.isfile(CONF_PATH):
         conf_tokens = conf_data.get('tokens')
         conf_public_key_path = conf_data.get('public_key_path')
         conf_ssh_config_path = conf_data.get('ssh_config_path')
+        conf_aws_access_key = conf_data.get('aws_access_key')
+        conf_aws_secret_key = conf_data.get('aws_secret_key')
+        conf_route_53_zone = conf_data.get('route_53_zone')
+        conf_public_address = conf_data.get('public_address')
+        conf_public_address6 = conf_data.get('public_address6')
 
 if '--config' in sys.argv[1:] or 'config' in sys.argv[1:]:
     key = sys.argv[2]
@@ -71,6 +91,16 @@ if '--config' in sys.argv[1:] or 'config' in sys.argv[1:]:
         conf_public_key_path = sys.argv[3]
     elif key == 'ssh-config-path':
         conf_ssh_config_path = sys.argv[3]
+    elif key == 'aws-access-key':
+        conf_aws_access_key = sys.argv[3]
+    elif key == 'aws-secret-key':
+        conf_aws_secret_key = sys.argv[3]
+    elif key == 'route-53-zone':
+        conf_route_53_zone = sys.argv[3]
+    elif key == 'public-address6':
+        conf_public_address = sys.argv[3]
+    elif key == 'public-address':
+        conf_public_address6 = sys.argv[3]
     elif key == 'clear-tokens':
         conf_tokens = []
     elif key == 'add-token':
@@ -92,6 +122,11 @@ if '--config' in sys.argv[1:] or 'config' in sys.argv[1:]:
             'tokens': conf_tokens,
             'public_key_path': conf_public_key_path,
             'ssh_config_path': conf_ssh_config_path,
+            'aws_access_key': conf_aws_access_key,
+            'aws_secret_key': conf_aws_secret_key,
+            'route_53_zone': conf_route_53_zone,
+            'public_address': conf_public_address,
+            'public_address6': conf_public_address6,
         }))
 
     sys.exit(0)
@@ -156,6 +191,175 @@ if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
 
 if cert_valid:
     sys.exit(0)
+
+def get_public_addr():
+    req = urllib2.Request(
+        'https://app.pritunl.com/ip',
+    )
+    req.get_method = lambda: 'GET'
+    resp = urllib2.urlopen(req, timeout=5)
+    resp_data = resp.read()
+    return json.loads(resp_data)['ip']
+
+def set_zone_record(zone_name, host_name, ip_addr, ip_addr6):
+    for i in xrange(3):
+        try:
+            _set_zone_record(zone_name, host_name, ip_addr, ip_addr6)
+            break
+        except:
+            if i >= 2:
+                raise
+        time.sleep(1)
+
+def _set_zone_record(zone_name, host_name, ip_addr, ip_addr6):
+    client = boto3.client(
+        'route53',
+        aws_access_key_id=conf_aws_access_key,
+        aws_secret_access_key=conf_aws_secret_key,
+    )
+
+    hosted_zone_id = None
+    hosted_zone_name = None
+    hosted_zones = client.list_hosted_zones_by_name()
+    for hosted_zone in hosted_zones['HostedZones']:
+        if zone_name in hosted_zone['Name']:
+            hosted_zone_id = hosted_zone['Id']
+            hosted_zone_name = hosted_zone['Name']
+
+    if not hosted_zone_id or not hosted_zone_name:
+        print('ERROR: Failed to find hosted zone ID for %r' % zone_name)
+        sys.exit(1)
+
+    record_name = host_name + '.' + hosted_zone_name
+
+    records = client.list_resource_record_sets(
+        HostedZoneId=hosted_zone_id,
+    )
+
+    cur_ip_addr = None
+    cur_ip_addr6 = None
+
+    for record in records['ResourceRecordSets']:
+        if record.get('Type') not in ('A', 'AAAA'):
+            continue
+        if record.get('Name') != record_name:
+            continue
+
+        if len(record['ResourceRecords']) == 1:
+            if record['Type'] == 'A':
+                cur_ip_addr = record['ResourceRecords'][0]['Value']
+            else:
+                cur_ip_addr6 = record['ResourceRecords'][0]['Value']
+        else:
+            if record['Type'] == 'A':
+                cur_ip_addr = []
+            else:
+                cur_ip_addr6 = []
+
+            for val in record['ResourceRecords']:
+                if record['Type'] == 'A':
+                    cur_ip_addr.append(val['Value'])
+                else:
+                    cur_ip_addr6.append(val['Value'])
+
+    changes = []
+
+    if ip_addr != cur_ip_addr:
+        if not ip_addr and cur_ip_addr:
+            if isinstance(cur_ip_addr, list):
+                vals = cur_ip_addr
+            else:
+                vals = [cur_ip_addr]
+
+            resource_recs = []
+            for val in vals:
+                resource_recs.append({'Value': val})
+
+            changes.append({
+                'Action': 'DELETE',
+                'ResourceRecordSet': {
+                    'Name': record_name,
+                    'Type': 'A',
+                    'TTL': 60,
+                    'ResourceRecords': resource_recs,
+                },
+            })
+        else:
+            changes.append({
+                'Action': 'UPSERT',
+                'ResourceRecordSet': {
+                    'Name': record_name,
+                    'Type': 'A',
+                    'TTL': 60,
+                    'ResourceRecords': [
+                        {'Value': ip_addr},
+                    ],
+                },
+            })
+
+    if ip_addr6 != cur_ip_addr6:
+        if not ip_addr6 and cur_ip_addr6:
+            if isinstance(cur_ip_addr6, list):
+                vals = cur_ip_addr6
+            else:
+                vals = [cur_ip_addr6]
+
+            resource_recs = []
+            for val in vals:
+                resource_recs.append({'Value': val})
+
+            changes.append({
+                'Action': 'DELETE',
+                'ResourceRecordSet': {
+                    'Name': record_name,
+                    'Type': 'AAAA',
+                    'TTL': 60,
+                    'ResourceRecords': resource_recs,
+                },
+            })
+        else:
+            changes.append({
+                'Action': 'UPSERT',
+                'ResourceRecordSet': {
+                    'Name': record_name,
+                    'Type': 'AAAA',
+                    'TTL': 60,
+                    'ResourceRecords': [
+                        {'Value': ip_addr6},
+                    ],
+                },
+            })
+
+    if changes:
+        client.change_resource_record_sets(
+            HostedZoneId=hosted_zone_id,
+            ChangeBatch={
+                'Changes': changes,
+            },
+        )
+
+if conf_route_53_zone:
+    if not HAS_BOTO:
+        print('ERROR: Route53 configured but Boto library missing')
+        sys.exit(1)
+
+    if conf_public_address:
+        public_addr = conf_public_address
+    else:
+        public_addr = get_public_addr()
+
+    print('ROUTE53: %s %s %s' % (
+        hostname + '.' + conf_route_53_zone,
+        public_addr,
+        conf_public_address6 or '',
+    ))
+
+    set_zone_record(
+        conf_route_53_zone,
+        hostname,
+        public_addr,
+        conf_public_address6,
+    )
 
 class Request(BaseHTTPServer.BaseHTTPRequestHandler):
     def send_json_response(self, data, status_code=200):
