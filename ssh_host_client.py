@@ -111,14 +111,19 @@ if '--config' in sys.argv[1:] or 'config' in sys.argv[1:]:
         conf_ssh_config_path = sys.argv[3]
     elif key == 'aws-access-key':
         conf_aws_access_key = sys.argv[3]
+        conf_route_53_updated = 0
     elif key == 'aws-secret-key':
         conf_aws_secret_key = sys.argv[3]
+        conf_route_53_updated = 0
     elif key == 'route-53-zone':
         conf_route_53_zone = sys.argv[3]
+        conf_route_53_updated = 0
     elif key == 'public-address6':
         conf_public_address = sys.argv[3]
+        conf_route_53_updated = 0
     elif key == 'public-address':
         conf_public_address6 = sys.argv[3]
+        conf_route_53_updated = 0
     elif key == 'clear-tokens':
         conf_tokens = []
     elif key == 'add-token':
