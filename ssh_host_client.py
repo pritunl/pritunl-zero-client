@@ -200,7 +200,7 @@ def _set_zone_record(zone_name, host_name, ip_addr, ip_addr6):
     hosted_zone_name = None
     hosted_zones = client.list_hosted_zones_by_name()
     for hosted_zone in hosted_zones['HostedZones']:
-        if zone_name in hosted_zone['Name']:
+        if hosted_zone['Name'].startswith(zone_name):
             hosted_zone_id = hosted_zone['Id']
             hosted_zone_name = hosted_zone['Name']
 
