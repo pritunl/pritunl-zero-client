@@ -42,9 +42,9 @@ if '--config' in sys.argv[1:] or 'config' in sys.argv[1:]:
     elif key == 'server':
         server_url = urlparse.urlparse(sys.argv[3])
         conf_server = 'https://%s' % (server_url.netloc or server_url.path)
-    elif key == 'public_key_path':
+    elif key == 'public-key-path':
         conf_public_key_path = sys.argv[3]
-    elif key == 'ssh_config_path':
+    elif key == 'ssh-config-path':
         conf_ssh_config_path = sys.argv[3]
     elif key == 'clear-tokens':
         conf_tokens = []
