@@ -99,44 +99,52 @@ def write_conf():
 
 if '--config' in sys.argv[1:] or 'config' in sys.argv[1:]:
     key = sys.argv[2]
+    try:
+        value = sys.argv[3]
+    except IndexError:
+        value = None
 
     if key == 'hostname':
-        conf_hostname = sys.argv[3]
+        conf_hostname = value
     elif key == 'server':
-        server_url = urlparse.urlparse(sys.argv[3])
-        conf_server = 'https://%s' % (server_url.netloc or server_url.path)
+        if value:
+            server_url = urlparse.urlparse(value)
+            value = 'https://%s' % (server_url.netloc or server_url.path)
+        conf_server = value
     elif key == 'public-key-path':
-        conf_public_key_path = sys.argv[3]
+        conf_public_key_path = value
     elif key == 'ssh-config-path':
-        conf_ssh_config_path = sys.argv[3]
+        conf_ssh_config_path = value
     elif key == 'aws-access-key':
-        conf_aws_access_key = sys.argv[3]
+        conf_aws_access_key = value
         conf_route_53_updated = 0
     elif key == 'aws-secret-key':
-        conf_aws_secret_key = sys.argv[3]
+        conf_aws_secret_key = value
         conf_route_53_updated = 0
     elif key == 'route-53-zone':
-        conf_route_53_zone = sys.argv[3]
+        conf_route_53_zone = value
         conf_route_53_updated = 0
     elif key == 'public-address6':
-        conf_public_address = sys.argv[3]
+        conf_public_address = value
         conf_route_53_updated = 0
     elif key == 'public-address':
-        conf_public_address6 = sys.argv[3]
+        conf_public_address6 = value
         conf_route_53_updated = 0
     elif key == 'clear-tokens':
         conf_tokens = []
     elif key == 'add-token':
         conf_tokens_set = set(conf_tokens or [])
-        conf_tokens_set.add(sys.argv[3])
+        conf_tokens_set.add(value)
         conf_tokens = list(conf_tokens_set)
     elif key == 'remove-token':
         conf_tokens_set = set(conf_tokens or [])
-        conf_tokens_set.remove(sys.argv[3])
+        conf_tokens_set.remove(value)
         conf_tokens = list(conf_tokens_set)
     else:
         print('WARN: Unknown config option')
         sys.exit(0)
+
+    print('CONFIG: %s=%s' % (key, value))
 
     write_conf()
 
