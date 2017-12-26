@@ -52,6 +52,7 @@ conf_ssh_config_path = None
 conf_aws_access_key = None
 conf_aws_secret_key = None
 conf_route_53_zone = None
+conf_route_53_updated = None
 conf_public_address = None
 conf_public_address6 = None
 
@@ -76,8 +77,25 @@ if os.path.isfile(CONF_PATH):
         conf_aws_access_key = conf_data.get('aws_access_key')
         conf_aws_secret_key = conf_data.get('aws_secret_key')
         conf_route_53_zone = conf_data.get('route_53_zone')
+        conf_route_53_updated = conf_data.get('route_53_updated')
         conf_public_address = conf_data.get('public_address')
         conf_public_address6 = conf_data.get('public_address6')
+
+def write_conf():
+    with open(CONF_PATH, 'w') as conf_file:
+        conf_file.write(json.dumps({
+            'hostname': conf_hostname,
+            'server': conf_server,
+            'tokens': conf_tokens,
+            'public_key_path': conf_public_key_path,
+            'ssh_config_path': conf_ssh_config_path,
+            'aws_access_key': conf_aws_access_key,
+            'aws_secret_key': conf_aws_secret_key,
+            'route_53_zone': conf_route_53_zone,
+            'route_53_updated': conf_route_53_updated,
+            'public_address': conf_public_address,
+            'public_address6': conf_public_address6,
+        }))
 
 if '--config' in sys.argv[1:] or 'config' in sys.argv[1:]:
     key = sys.argv[2]
@@ -115,19 +133,7 @@ if '--config' in sys.argv[1:] or 'config' in sys.argv[1:]:
         print('WARN: Unknown config option')
         sys.exit(0)
 
-    with open(CONF_PATH, 'w') as conf_file:
-        conf_file.write(json.dumps({
-            'hostname': conf_hostname,
-            'server': conf_server,
-            'tokens': conf_tokens,
-            'public_key_path': conf_public_key_path,
-            'ssh_config_path': conf_ssh_config_path,
-            'aws_access_key': conf_aws_access_key,
-            'aws_secret_key': conf_aws_secret_key,
-            'route_53_zone': conf_route_53_zone,
-            'public_address': conf_public_address,
-            'public_address6': conf_public_address6,
-        }))
+    write_conf()
 
     sys.exit(0)
 
@@ -162,34 +168,6 @@ if '--info' in sys.argv[1:] or 'info' in sys.argv[1:]:
         print('ERROR: No SSH certificates available')
         sys.exit(1)
     subprocess.check_call(['ssh-keygen', '-L', '-f', cert_path])
-    sys.exit(0)
-
-cert_valid = False
-if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
-    try:
-        if os.path.exists(cert_path):
-            cur_date = datetime.datetime.now() + \
-                datetime.timedelta(minutes=10)
-
-            status = subprocess.check_output(
-                ['ssh-keygen', '-L', '-f', cert_path])
-
-            cert_valid = True
-            for line in status.splitlines():
-                line = line.strip()
-                if line.startswith('Valid:'):
-                    line = line.split('to')[-1].strip()
-                    valid_to = datetime.datetime.strptime(
-                        line, '%Y-%m-%dT%H:%M:%S')
-                    print('VALID_TO: %s' % valid_to)
-                    if cur_date >= valid_to:
-                        cert_valid = False
-                        break
-    except Exception as exception:
-        print('WARN: Failed to get certificate expiration')
-        print(str(exception))
-
-if cert_valid:
     sys.exit(0)
 
 def get_public_addr():
@@ -343,23 +321,56 @@ if conf_route_53_zone:
         print('ERROR: Route53 configured but Boto library missing')
         sys.exit(1)
 
-    if conf_public_address:
-        public_addr = conf_public_address
-    else:
-        public_addr = get_public_addr()
+    cur_time = int(time.time())
+    if cur_time - (conf_route_53_updated or 0) >= 3600:
+        if conf_public_address:
+            public_addr = conf_public_address
+        else:
+            public_addr = get_public_addr()
 
-    print('ROUTE53: %s %s %s' % (
-        hostname + '.' + conf_route_53_zone,
-        public_addr,
-        conf_public_address6 or '',
-    ))
+        print('ROUTE53: %s %s %s' % (
+            hostname + '.' + conf_route_53_zone,
+            public_addr,
+            conf_public_address6 or '',
+        ))
 
-    set_zone_record(
-        conf_route_53_zone,
-        hostname,
-        public_addr,
-        conf_public_address6,
-    )
+        set_zone_record(
+            conf_route_53_zone,
+            hostname,
+            public_addr,
+            conf_public_address6,
+        )
+
+        conf_route_53_updated = cur_time
+        write_conf()
+
+cert_valid = False
+if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
+    try:
+        if os.path.exists(cert_path):
+            cur_date = datetime.datetime.now() + \
+                datetime.timedelta(minutes=10)
+
+            status = subprocess.check_output(
+                ['ssh-keygen', '-L', '-f', cert_path])
+
+            cert_valid = True
+            for line in status.splitlines():
+                line = line.strip()
+                if line.startswith('Valid:'):
+                    line = line.split('to')[-1].strip()
+                    valid_to = datetime.datetime.strptime(
+                        line, '%Y-%m-%dT%H:%M:%S')
+                    print('VALID_TO: %s' % valid_to)
+                    if cur_date >= valid_to:
+                        cert_valid = False
+                        break
+    except Exception as exception:
+        print('WARN: Failed to get certificate expiration')
+        print(str(exception))
+
+if cert_valid:
+    sys.exit(0)
 
 class Request(BaseHTTPServer.BaseHTTPRequestHandler):
     def send_json_response(self, data, status_code=200):
