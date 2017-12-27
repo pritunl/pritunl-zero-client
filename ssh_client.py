@@ -18,12 +18,15 @@ USAGE = """\
 Usage: pritunl-ssh [command]
 
 Commands:
-  help      Show help
-  version   Print the version and exit
-  config    Reconfigure options
-  keybase   Configure keybase
-  info      Show current certificate information
-  renew     Force certificate renewal"""
+  help                Show help
+  version             Print the version and exit
+  config              Reconfigure options
+  keybase             Configure keybase
+  info                Show current certificate information
+  renew               Force certificate renewal
+  clear               Remove all configuration changes made by Pritunl
+  clear-strict-host   Remove strict host checking configuration changes
+  clear-bastion-host  Remove bastion host configuration changes"""
 
 conf_zero_server = None
 conf_pub_key_path = None
