@@ -277,7 +277,7 @@ if '--clear' in sys.argv[1:] or 'clear' in sys.argv[1:]:
     if os.path.exists(ssh_config_path_full):
         host_skip = 0
         with open(ssh_config_path_full, 'r') as config_file:
-            for line in config_file.readlines():
+            for line in config_file.readlines() + ['\n']:
                 if host_skip:
                     if host_skip > 1 and not line.startswith('	'):
                         host_skip = 0
@@ -289,6 +289,8 @@ if '--clear' in sys.argv[1:] or 'clear' in sys.argv[1:]:
                     host_skip = 1
                     continue
                 ssh_config_data += line
+
+    ssh_config_data = ssh_config_data[:-1]
 
     if ssh_config_modified:
         print 'SSH_CONFIG: ' + ssh_config_path
@@ -723,7 +725,7 @@ ssh_config_data = ''
 if os.path.exists(ssh_config_path_full):
     host_skip = 0
     with open(ssh_config_path_full, 'r') as config_file:
-        for line in config_file.readlines():
+        for line in config_file.readlines() + ['\n']:
             if host_skip:
                 if host_skip > 1 and not line.startswith('	'):
                     host_skip = 0
@@ -735,6 +737,8 @@ if os.path.exists(ssh_config_path_full):
                 host_skip = 1
                 continue
             ssh_config_data += line
+
+ssh_config_data = ssh_config_data[:-1]
 
 if ssh_config_data and not ssh_config_data.endswith('\n\n'):
     if ssh_config_data.endswith('\n'):
