@@ -705,7 +705,7 @@ print 'CERTIFICATE: ' + cert_path
 known_hosts_modified = False
 known_hosts_data = ''
 
-for cert_authority in cert_authorities:
+for cert_authority in cert_authorities or []:
     known_hosts_modified = True
     known_hosts_data += cert_authority + ' # pritunl-zero\n'
 
