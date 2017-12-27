@@ -25,12 +25,12 @@ Commands:
   info      Show current certificate information
   renew     Force certificate renewal"""
 
-zero_server = None
-pub_key_path = None
-keybase_state = None
+conf_zero_server = None
+conf_pub_key_path = None
+conf_keybase_state = None
+conf_known_hosts_path = None
+conf_ssh_config_path = None
 keybase_username = None
-known_hosts_path = None
-ssh_config_path = None
 ssh_dir_path = os.path.expanduser(SSH_DIR)
 conf_path = os.path.expanduser(CONF_PATH)
 changed = False
@@ -60,26 +60,27 @@ if '--config' not in sys.argv[1:] and \
         conf_data = conf_file.read()
         try:
             conf_data = json.loads(conf_data)
-            zero_server = conf_data.get('server')
-            pub_key_path = conf_data.get('public_key_path')
-            keybase_state = conf_data.get('keybase_state')
-            known_hosts_path = conf_data.get('known_hosts_path')
-            ssh_config_path = conf_data.get('ssh_config_path')
+            conf_zero_server = conf_data.get('server')
+            conf_pub_key_path = conf_data.get('public_key_path')
+            conf_keybase_state = conf_data.get('keybase_state')
+            conf_known_hosts_path = conf_data.get('known_hosts_path')
+            conf_ssh_config_path = conf_data.get('ssh_config_path')
         except:
             print 'WARNING: Failed to parse config file'
 
-if not zero_server:
+if not conf_zero_server:
     while True:
         server = raw_input('Enter Pritunl Zero user hostname: ')
         if server:
             break
     server_url = urlparse.urlparse(server)
-    zero_server = 'https://%s' % (server_url.netloc or server_url.path)
+    conf_zero_server = 'https://%s' % (server_url.netloc or server_url.path)
     changed = True
 
-print 'SERVER: ' + zero_server
+print 'SERVER: ' + conf_zero_server
 
-if not pub_key_path or not os.path.exists(os.path.expanduser(pub_key_path)):
+if not conf_pub_key_path or not os.path.exists(
+        os.path.expanduser(conf_pub_key_path)):
     if not os.path.exists(ssh_dir_path):
         print 'ERROR: No SSH keys found, run "ssh-keygen" to create a key'
         sys.exit(0)
@@ -102,22 +103,30 @@ if not pub_key_path or not os.path.exists(os.path.expanduser(pub_key_path)):
 
     try:
         index = int(key_input)
-        pub_key_path = os.path.join(SSH_DIR, ssh_names[index - 1])
+        conf_pub_key_path = os.path.join(SSH_DIR, ssh_names[index - 1])
     except ValueError, IndexError:
         pass
 
-    if not pub_key_path:
+    if not conf_pub_key_path:
         if key_input in ssh_names:
-            pub_key_path = os.path.join(SSH_DIR, key_input)
+            conf_pub_key_path = os.path.join(SSH_DIR, key_input)
         else:
-            pub_key_path = key_input
+            conf_pub_key_path = key_input
 
-    pub_key_path = os.path.normpath(pub_key_path)
+    conf_pub_key_path = os.path.normpath(conf_pub_key_path)
     changed = True
 
-pub_key_path_full = os.path.expanduser(pub_key_path)
-cert_path = pub_key_path.rsplit('.pub', 1)[0] + '-cert.pub'
+ssh_config_path = conf_ssh_config_path or DEF_SSH_CONF_PATH
+ssh_config_path_full = os.path.expanduser(ssh_config_path)
+
+known_hosts_path = conf_keybase_state or DEF_KNOWN_HOSTS_PATH
+known_hosts_path_full = os.path.expanduser(known_hosts_path)
+
+cert_path = conf_pub_key_path.rsplit('.pub', 1)[0] + '-cert.pub'
 cert_path_full = os.path.expanduser(cert_path)
+
+pub_key_path_full = os.path.expanduser(conf_pub_key_path)
+
 if not os.path.exists(pub_key_path_full):
     print 'ERROR: Selected SSH key does not exist'
     sys.exit(0)
@@ -126,7 +135,7 @@ if not pub_key_path_full.endswith('.pub'):
     print 'ERROR: SSH key path must end with .pub'
     sys.exit(0)
 
-print 'SSH_KEY: ' + pub_key_path
+print 'SSH_KEY: ' + conf_pub_key_path
 
 if '--info' in sys.argv[1:] or 'info' in sys.argv[1:]:
     if not os.path.exists(cert_path_full):
@@ -141,19 +150,19 @@ if '--keybase' in sys.argv[1:] or 'keybase' in sys.argv[1:]:
     if not keybase_username:
         print 'ERROR: Unable to read keybase status'
         sys.exit(0)
-    keybase_state = None
+    conf_keybase_state = None
     keybase_exit = True
 
-if keybase_username and keybase_state is None:
+if keybase_username and conf_keybase_state is None:
     keybase_input = raw_input('Authenticate with Keybase? [Y/n]: ')
     if not keybase_input.startswith('n'):
         keybase_associate = True
     else:
-        keybase_state = False
+        conf_keybase_state = False
 
 if keybase_associate:
     req = urllib2.Request(
-        zero_server + '/keybase/associate',
+        conf_zero_server + '/keybase/associate',
         data=json.dumps({
             'username': keybase_username,
         }),
@@ -193,12 +202,12 @@ if keybase_associate:
     ).strip()
 
     req = urllib2.Request(
-        zero_server + '/keybase/check',
+        conf_zero_server + '/keybase/check',
         data=json.dumps({
             'token': token,
             'signature': signature,
         }),
-        )
+    )
     req.add_header('Content-Type', 'application/json')
     req.get_method = lambda: 'PUT'
     resp_data = ''
@@ -226,7 +235,7 @@ if keybase_associate:
         sys.exit(0)
 
     if status_code == 404:
-        token_url = zero_server + '/keybase?' + urllib.urlencode({
+        token_url = conf_zero_server + '/keybase?' + urllib.urlencode({
             'keybase-token': token,
             'keybase-sig': signature,
         })
@@ -240,7 +249,7 @@ if keybase_associate:
 
         for i in xrange(10):
             req = urllib2.Request(
-                zero_server + '/keybase/associate/' + token,
+                conf_zero_server + '/keybase/associate/' + token,
             )
             req.get_method = lambda: 'GET'
             resp_data = ''
@@ -284,18 +293,18 @@ if keybase_associate:
                     print resp_data.strip()
             sys.exit(0)
 
-    keybase_state = True
+    conf_keybase_state = True
 
 with open(conf_path, 'w') as conf_file:
     conf_file.write(json.dumps({
-        'server': zero_server,
-        'public_key_path': pub_key_path,
-        'keybase_state': keybase_state,
-        'known_hosts_path': known_hosts_path,
-        'ssh_config_path': ssh_config_path,
+        'server': conf_zero_server,
+        'public_key_path': conf_pub_key_path,
+        'keybase_state': conf_keybase_state,
+        'known_hosts_path': conf_known_hosts_path,
+        'ssh_config_path': conf_ssh_config_path,
     }))
 
-if keybase_username and keybase_state:
+if keybase_username and conf_keybase_state:
     print 'KEYBASE_USERNAME: ' + keybase_username
 
 if keybase_exit:
@@ -332,9 +341,9 @@ if cert_valid:
 with open(pub_key_path_full, 'r') as pub_key_file:
     pub_key_data = pub_key_file.read().strip()
 
-if keybase_state:
+if conf_keybase_state:
     req = urllib2.Request(
-        zero_server + '/keybase/challenge',
+        conf_zero_server + '/keybase/challenge',
         data=json.dumps({
             'username': keybase_username,
             'public_key': pub_key_data,
@@ -376,7 +385,7 @@ if keybase_state:
     keybase_data = json.loads(keybase_status)
 
     req = urllib2.Request(
-        zero_server + '/keybase/challenge',
+        conf_zero_server + '/keybase/challenge',
         data=json.dumps({
             'token': token,
             'signature': signature,
@@ -424,7 +433,7 @@ if keybase_state:
     sys.exit(0)
 
 req = urllib2.Request(
-    zero_server + '/ssh/challenge',
+    conf_zero_server + '/ssh/challenge',
     data=json.dumps({
         'public_key': pub_key_data,
     }),
@@ -458,7 +467,7 @@ if status_code != 200:
 
 token = json.loads(resp_data)['token']
 
-token_url = zero_server + '/ssh?ssh-token=' + token
+token_url = conf_zero_server + '/ssh?ssh-token=' + token
 
 print 'OPEN: ' + token_url
 
@@ -469,7 +478,7 @@ except:
 
 for i in xrange(10):
     req = urllib2.Request(
-        zero_server + '/ssh/challenge',
+        conf_zero_server + '/ssh/challenge',
         data=json.dumps({
             'public_key': pub_key_data,
             'token': token,
@@ -528,16 +537,14 @@ with open(cert_path_full, 'w') as cert_file:
 print 'CERTIFICATE: ' + cert_path
 
 known_hosts_modified = False
-known_hosts_path = os.path.expanduser(
-    known_hosts_path or DEF_KNOWN_HOSTS_PATH)
 known_hosts_data = ''
 
 for cert_authority in cert_authorities:
     known_hosts_modified = True
     known_hosts_data += cert_authority + ' # pritunl-zero\n'
 
-if os.path.exists(known_hosts_path):
-    with open(known_hosts_path, 'r') as known_file:
+if os.path.exists(known_hosts_path_full):
+    with open(known_hosts_path_full, 'r') as known_file:
         for line in known_file.readlines():
             if line.strip().endswith('# pritunl-zero'):
                 known_hosts_modified = True
@@ -545,18 +552,16 @@ if os.path.exists(known_hosts_path):
             known_hosts_data += line
 
 if known_hosts_modified:
-    print 'KNOWN_HOSTS: ' + (known_hosts_path or DEF_KNOWN_HOSTS_PATH)
-    with open(known_hosts_path, 'w') as known_file:
+    print 'KNOWN_HOSTS: ' + known_hosts_path
+    with open(known_hosts_path_full, 'w') as known_file:
         known_file.write(known_hosts_data)
 
 ssh_config_modified = False
-ssh_config_path = os.path.expanduser(
-    ssh_config_path or DEF_SSH_CONF_PATH)
 ssh_config_data = ''
 
-if os.path.exists(ssh_config_path):
+if os.path.exists(ssh_config_path_full):
     host_skip = 0
-    with open(ssh_config_path, 'r') as config_file:
+    with open(ssh_config_path_full, 'r') as config_file:
         for line in config_file.readlines():
             if host_skip:
                 if host_skip > 1 and not line.startswith('	'):
@@ -592,8 +597,8 @@ for cert_host in cert_hosts or []:
         ssh_config_data += '	StrictHostKeyChecking yes\n'
 
 if ssh_config_modified:
-    print 'SSH_CONFIG: ' + (ssh_config_path or DEF_SSH_CONF_PATH)
-    with open(ssh_config_path, 'w') as config_file:
+    print 'SSH_CONFIG: ' + ssh_config_path
+    with open(ssh_config_path_full, 'w') as config_file:
         config_file.write(ssh_config_data)
 
 print 'Successfully validated SSH key'
