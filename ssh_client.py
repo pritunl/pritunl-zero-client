@@ -137,6 +137,63 @@ if not pub_key_path_full.endswith('.pub'):
 
 print 'SSH_KEY: ' + conf_pub_key_path
 
+if '--clear-strict-host' in sys.argv[1:] or \
+        'clear-strict-host' in sys.argv[1:]:
+    if os.path.exists(cert_path_full):
+        os.remove(cert_path_full)
+
+    known_hosts_modified = False
+    known_hosts_data = ''
+
+    if os.path.exists(known_hosts_path_full):
+        with open(known_hosts_path_full, 'r') as known_file:
+            for line in known_file.readlines():
+                if line.strip().endswith('# pritunl-zero'):
+                    known_hosts_modified = True
+                    continue
+                known_hosts_data += line
+
+    if known_hosts_modified:
+        print 'KNOWN_HOSTS: ' + known_hosts_path
+        with open(known_hosts_path_full, 'w') as known_file:
+            known_file.write(known_hosts_data)
+
+    ssh_config_modified = False
+    ssh_config_data = ''
+    ssh_config_temp = None
+
+    if os.path.exists(ssh_config_path_full):
+        host_skip = 0
+        with open(ssh_config_path_full, 'r') as config_file:
+            for line in config_file.readlines() + ['\n']:
+                if host_skip:
+                    if host_skip > 1 and not line.startswith('	'):
+                        host_skip = 0
+                        if len(ssh_config_temp) > 2:
+                            ssh_config_data += ''.join(ssh_config_temp)
+                        ssh_config_temp = None
+                    else:
+                        host_skip += 1
+                        if 'StrictHostKeyChecking ' not in line:
+                            ssh_config_temp.append(line)
+                        continue
+                if line.startswith('# pritunl-zero'):
+                    ssh_config_modified = True
+                    host_skip = 1
+                    ssh_config_temp = [line]
+                    continue
+                ssh_config_data += line
+
+    ssh_config_data = ssh_config_data[:-1]
+
+    if ssh_config_modified:
+        print 'SSH_CONFIG: ' + ssh_config_path
+        with open(ssh_config_path_full, 'w') as config_file:
+            config_file.write(ssh_config_data)
+
+    print 'Successfully cleared strict host checking configuration'
+    sys.exit(0)
+
 if '--clear-bastion-host' in sys.argv[1:] or \
         'clear-bastion-host' in sys.argv[1:]:
     if os.path.exists(cert_path_full):
