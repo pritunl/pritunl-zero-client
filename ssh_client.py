@@ -294,7 +294,7 @@ if keybase_associate:
         except:
             pass
 
-        for i in xrange(10):
+        for _ in xrange(10):
             req = urllib2.Request(
                 conf_zero_server + '/keybase/associate/' + token,
             )
@@ -523,7 +523,7 @@ try:
 except:
     pass
 
-for i in xrange(10):
+for _ in xrange(10):
     req = urllib2.Request(
         conf_zero_server + '/ssh/challenge',
         data=json.dumps({
