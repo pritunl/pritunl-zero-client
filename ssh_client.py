@@ -122,7 +122,7 @@ if not conf_pub_key_path or not os.path.exists(
 ssh_config_path = conf_ssh_config_path or DEF_SSH_CONF_PATH
 ssh_config_path_full = os.path.expanduser(ssh_config_path)
 
-known_hosts_path = conf_keybase_state or DEF_KNOWN_HOSTS_PATH
+known_hosts_path = conf_known_hosts_path or DEF_KNOWN_HOSTS_PATH
 known_hosts_path_full = os.path.expanduser(known_hosts_path)
 
 cert_path = conf_pub_key_path.rsplit('.pub', 1)[0] + '-cert.pub'
