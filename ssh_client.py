@@ -409,9 +409,16 @@ if keybase_associate:
         print 'OPEN: ' + token_url
 
         try:
-            subprocess.Popen(['open', token_url])
+            subprocess.Popen(
+                ['xdg-open', token_url],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
         except:
-            pass
+            try:
+                subprocess.Popen(['open', token_url])
+            except:
+                pass
 
         for _ in xrange(10):
             req = urllib2.Request(
@@ -638,9 +645,16 @@ token_url = conf_zero_server + '/ssh?ssh-token=' + token
 print 'OPEN: ' + token_url
 
 try:
-    subprocess.Popen(['open', token_url])
+    subprocess.Popen(
+        ['xdg-open', token_url],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
 except:
-    pass
+    try:
+        subprocess.Popen(['open', token_url])
+    except:
+        pass
 
 for _ in xrange(10):
     req = urllib2.Request(
