@@ -594,85 +594,22 @@ if conf_keybase_state:
             if resp_data:
                 print resp_data.strip()
         sys.exit(0)
-
-    certificates = json.loads(resp_data)['certificates']
-
-    with open(cert_path_full, 'w') as cert_file:
-        cert_file.write('\n'.join(certificates) + '\n')
-
-    print 'CERTIFICATE: ' + cert_path
-    print 'Successfully validated SSH key'
-
-    sys.exit(0)
-
-req = urllib2.Request(
-    conf_zero_server + '/ssh/challenge',
-    data=json.dumps({
-        'public_key': pub_key_data,
-    }),
-)
-req.add_header('Content-Type', 'application/json')
-req.get_method = lambda: 'POST'
-resp_data = ''
-resp_error = None
-status_code = None
-try:
-    resp = urllib2.urlopen(req)
-    resp_data = resp.read()
-    status_code = resp.getcode()
-except urllib2.HTTPError as exception:
-    status_code = exception.code
-    try:
-        resp_data = exception.read()
-        resp_error = str(json.loads(resp_data)['error_msg'])
-    except:
-        pass
-
-if status_code != 200:
-    if resp_error:
-        print 'ERROR: ' + resp_error
-    else:
-        print 'ERROR: SSH challenge request failed with status %d' % \
-            status_code
-        if resp_data:
-            print resp_data.strip()
-    sys.exit(0)
-
-token = json.loads(resp_data)['token']
-
-token_url = conf_zero_server + '/ssh?ssh-token=' + token
-
-print 'OPEN: ' + token_url
-
-try:
-    subprocess.Popen(
-        ['xdg-open', token_url],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-except:
-    try:
-        subprocess.Popen(['open', token_url])
-    except:
-        pass
-
-for _ in xrange(10):
+else:
     req = urllib2.Request(
         conf_zero_server + '/ssh/challenge',
         data=json.dumps({
             'public_key': pub_key_data,
-            'token': token,
         }),
     )
     req.add_header('Content-Type', 'application/json')
-    req.get_method = lambda: 'PUT'
+    req.get_method = lambda: 'POST'
     resp_data = ''
     resp_error = None
     status_code = None
     try:
         resp = urllib2.urlopen(req)
-        status_code = resp.getcode()
         resp_data = resp.read()
+        status_code = resp.getcode()
     except urllib2.HTTPError as exception:
         status_code = exception.code
         try:
@@ -681,30 +618,83 @@ for _ in xrange(10):
         except:
             pass
 
+    if status_code != 200:
+        if resp_error:
+            print 'ERROR: ' + resp_error
+        else:
+            print 'ERROR: SSH challenge request failed with status %d' % \
+                status_code
+            if resp_data:
+                print resp_data.strip()
+        sys.exit(0)
+
+    token = json.loads(resp_data)['token']
+
+    token_url = conf_zero_server + '/ssh?ssh-token=' + token
+
+    print 'OPEN: ' + token_url
+
+    try:
+        subprocess.Popen(
+            ['xdg-open', token_url],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except:
+        try:
+            subprocess.Popen(['open', token_url])
+        except:
+            pass
+
+    for _ in xrange(10):
+        req = urllib2.Request(
+            conf_zero_server + '/ssh/challenge',
+            data=json.dumps({
+                'public_key': pub_key_data,
+                'token': token,
+            }),
+        )
+        req.add_header('Content-Type', 'application/json')
+        req.get_method = lambda: 'PUT'
+        resp_data = ''
+        resp_error = None
+        status_code = None
+        try:
+            resp = urllib2.urlopen(req)
+            status_code = resp.getcode()
+            resp_data = resp.read()
+        except urllib2.HTTPError as exception:
+            status_code = exception.code
+            try:
+                resp_data = exception.read()
+                resp_error = str(json.loads(resp_data)['error_msg'])
+            except:
+                pass
+
+        if status_code == 205:
+            continue
+        break
+
     if status_code == 205:
-        continue
-    break
+        print 'ERROR: SSH verification request timed out'
+        sys.exit(0)
 
-if status_code == 205:
-    print 'ERROR: SSH verification request timed out'
-    sys.exit(0)
+    if status_code == 401:
+        print 'ERROR: SSH verification request was denied'
+        sys.exit(0)
 
-if status_code == 401:
-    print 'ERROR: SSH verification request was denied'
-    sys.exit(0)
+    if status_code == 404:
+        print 'ERROR: SSH verification request has expired'
+        sys.exit(0)
 
-if status_code == 404:
-    print 'ERROR: SSH verification request has expired'
-    sys.exit(0)
-
-if status_code != 200:
-    if resp_error:
-        print 'ERROR: ' + resp_error
-    else:
-        print 'ERROR: SSH verification failed with status %d' % status_code
-        if resp_data:
-            print resp_data.strip()
-    sys.exit(0)
+    if status_code != 200:
+        if resp_error:
+            print 'ERROR: ' + resp_error
+        else:
+            print 'ERROR: SSH verification failed with status %d' % status_code
+            if resp_data:
+                print resp_data.strip()
+        sys.exit(0)
 
 cert_data = json.loads(resp_data)
 certificates = cert_data['certificates']
