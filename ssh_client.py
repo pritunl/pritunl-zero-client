@@ -86,7 +86,7 @@ if not conf_pub_key_path or not os.path.exists(
         os.path.expanduser(conf_pub_key_path)):
     if not os.path.exists(ssh_dir_path):
         print 'ERROR: No SSH keys found, run "ssh-keygen" to create a key'
-        sys.exit(0)
+        sys.exit(1)
 
     ssh_names = []
 
@@ -132,11 +132,11 @@ pub_key_path_full = os.path.expanduser(conf_pub_key_path)
 
 if not os.path.exists(pub_key_path_full):
     print 'ERROR: Selected SSH key does not exist'
-    sys.exit(0)
+    sys.exit(1)
 
 if not pub_key_path_full.endswith('.pub'):
     print 'ERROR: SSH key path must end with .pub'
-    sys.exit(0)
+    sys.exit(1)
 
 print 'SSH_KEY: ' + conf_pub_key_path
 
@@ -306,7 +306,7 @@ if '--clear' in sys.argv[1:] or 'clear' in sys.argv[1:]:
 if '--info' in sys.argv[1:] or 'info' in sys.argv[1:]:
     if not os.path.exists(cert_path_full):
         print 'ERROR: No SSH certificates available'
-        sys.exit(0)
+        sys.exit(1)
     subprocess.check_call(['ssh-keygen', '-L', '-f', cert_path_full])
     sys.exit(0)
 
@@ -315,7 +315,7 @@ keybase_exit = False
 if '--keybase' in sys.argv[1:] or 'keybase' in sys.argv[1:]:
     if not keybase_username:
         print 'ERROR: Unable to read keybase status'
-        sys.exit(0)
+        sys.exit(1)
     conf_keybase_state = None
     keybase_exit = True
 
@@ -358,7 +358,7 @@ if keybase_associate:
                 status_code
             if resp_data:
                 print resp_data.strip()
-        sys.exit(0)
+        sys.exit(1)
 
     token = json.loads(resp_data)['token']
     message = json.loads(resp_data)['message']
@@ -398,7 +398,7 @@ if keybase_associate:
             print 'ERROR: Keybase check failed with status %d' % status_code
             if resp_data:
                 print resp_data.strip()
-        sys.exit(0)
+        sys.exit(1)
 
     if status_code == 404:
         token_url = conf_zero_server + '/keybase?' + urllib.urlencode({
@@ -446,17 +446,17 @@ if keybase_associate:
 
         if status_code == 205:
             print 'ERROR: Keybase association request timed out'
-            sys.exit(0)
+            sys.exit(1)
 
-        if status_code == 401:
+        elif status_code == 401:
             print 'ERROR: Keybase association request was denied'
-            sys.exit(0)
+            sys.exit(1)
 
-        if status_code == 404:
+        elif status_code == 404:
             print 'ERROR: Keybase association request has expired'
-            sys.exit(0)
+            sys.exit(1)
 
-        if status_code != 200:
+        elif status_code != 200:
             if resp_error:
                 print 'ERROR: ' + resp_error
             else:
@@ -464,7 +464,7 @@ if keybase_associate:
                     status_code
                 if resp_data:
                     print resp_data.strip()
-            sys.exit(0)
+            sys.exit(1)
 
     conf_keybase_state = True
 
@@ -547,7 +547,7 @@ if conf_keybase_state:
                 status_code
             if resp_data:
                 print resp_data.strip()
-        sys.exit(0)
+        sys.exit(1)
 
     token = json.loads(resp_data)['token']
     message = json.loads(resp_data)['message']
@@ -593,7 +593,7 @@ if conf_keybase_state:
                 status_code
             if resp_data:
                 print resp_data.strip()
-        sys.exit(0)
+        sys.exit(1)
 else:
     req = urllib2.Request(
         conf_zero_server + '/ssh/challenge',
@@ -626,7 +626,7 @@ else:
                 status_code
             if resp_data:
                 print resp_data.strip()
-        sys.exit(0)
+        sys.exit(1)
 
     token = json.loads(resp_data)['token']
 
@@ -677,24 +677,24 @@ else:
 
     if status_code == 205:
         print 'ERROR: SSH verification request timed out'
-        sys.exit(0)
+        sys.exit(1)
 
-    if status_code == 401:
+    elif status_code == 401:
         print 'ERROR: SSH verification request was denied'
-        sys.exit(0)
+        sys.exit(1)
 
-    if status_code == 404:
+    elif status_code == 404:
         print 'ERROR: SSH verification request has expired'
-        sys.exit(0)
+        sys.exit(1)
 
-    if status_code != 200:
+    elif status_code != 200:
         if resp_error:
             print 'ERROR: ' + resp_error
         else:
             print 'ERROR: SSH verification failed with status %d' % status_code
             if resp_data:
                 print resp_data.strip()
-        sys.exit(0)
+        sys.exit(1)
 
 cert_data = json.loads(resp_data)
 certificates = cert_data['certificates']
