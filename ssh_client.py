@@ -105,9 +105,9 @@ if not conf_pub_key_path or not os.path.exists(
             break
 
     try:
-        index = int(key_input)
-        conf_pub_key_path = os.path.join(SSH_DIR, ssh_names[index - 1])
-    except ValueError, IndexError:
+        index = int(key_input) - 1
+        conf_pub_key_path = os.path.join(SSH_DIR, ssh_names[index])
+    except (ValueError, IndexError):
         pass
 
     if not conf_pub_key_path:
