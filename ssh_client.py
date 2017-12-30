@@ -583,9 +583,99 @@ if conf_keybase_state:
 
     if status_code == 404:
         print 'ERROR: Keybase challenge request has expired'
-        sys.exit(0)
+        sys.exit(1)
 
-    if status_code != 200:
+    elif status_code == 201:
+        secondary_data = json.loads(resp_data)
+        secondary_token = secondary_data['token']
+        print 'SECONDARY: %s' % secondary_data.get('label')
+
+        secondary_factors = []
+        if secondary_data.get('push'):
+            secondary_factors.append(('push', 'Push'))
+        if secondary_data.get('phone'):
+            secondary_factors.append(('phone', 'Call Me'))
+        if secondary_data.get('sms'):
+            secondary_factors.append(('sms', 'Text Me'))
+        if secondary_data.get('passcode'):
+            secondary_factors.append(('passcode', 'Passcode'))
+
+        def factor_challenge(factor, passcode):
+            req = urllib2.Request(
+                conf_zero_server + '/keybase/secondary',
+                data=json.dumps({
+                    'token': secondary_token,
+                    'factor': factor,
+                    'passcode': passcode,
+                }),
+            )
+            req.add_header('Content-Type', 'application/json')
+            req.get_method = lambda: 'PUT'
+            resp_data = ''
+            resp_error = None
+            status_code = None
+            try:
+                resp = urllib2.urlopen(req)
+                resp_data = resp.read()
+                status_code = resp.getcode()
+            except urllib2.HTTPError as exception:
+                status_code = exception.code
+                try:
+                    resp_data = exception.read()
+                    resp_error = str(json.loads(resp_data)['error_msg'])
+                except:
+                    pass
+
+            if status_code == 401:
+                print resp_error
+
+            elif status_code == 201 and factor == 'sms':
+                print 'Text message sent'
+
+            elif status_code != 200:
+                if resp_error:
+                    print 'ERROR: ' + resp_error
+                else:
+                    print 'ERROR: Secondary failed with status %d' % \
+                        status_code
+                    if resp_data:
+                        print resp_data.strip()
+            else:
+                return resp_data
+
+        while True:
+            if not secondary_factors:
+                print 'ERROR: Secondary authentication failed'
+                sys.exit(1)
+
+            if len(secondary_factors) == 1:
+                index = 0
+                factor = secondary_factors[0][0]
+            else:
+                print 'Select factor:'
+                for i, factor in enumerate(secondary_factors):
+                    print '[%d] %s' % (i + 1, factor[1])
+
+                factor_input = raw_input('Enter factor number: ')
+                try:
+                    index = int(factor_input) - 1
+                    factor = secondary_factors[index][0]
+                except (ValueError, IndexError):
+                    continue
+
+            if factor == 'passcode':
+                passcode = raw_input('Enter passcode: ')
+                if not passcode:
+                    continue
+            else:
+                passcode = None
+                secondary_factors.pop(index)
+
+            resp_data = factor_challenge(factor, passcode)
+            if resp_data:
+                break
+
+    elif status_code != 200:
         if resp_error:
             print 'ERROR: ' + resp_error
         else:
