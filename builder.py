@@ -94,6 +94,17 @@ if cmd == 'encrypt':
 
     sys.exit(0)
 
+if cmd == 'decrypt':
+    with open(BUILD_KEYS_PATH, 'r') as build_keys_file:
+        enc_data = build_keys_file.read().strip()
+
+    data = aes_decrypt(passphrase, enc_data)
+
+    with open(BUILD_KEYS_PATH, 'w') as build_keys_file:
+        build_keys_file.write(data)
+
+    sys.exit(0)
+
 with open(BUILD_KEYS_PATH, 'r') as build_keys_file:
     enc_data = build_keys_file.read()
     data = aes_decrypt(passphrase, enc_data)
