@@ -11,6 +11,7 @@ import datetime
 VERSION = '1.0.765.26'
 SSH_DIR = '~/.ssh'
 CONF_PATH = SSH_DIR + '/pritunl-zero.json'
+BASH_PROFILE_PATH = '~/.bash_profile'
 DEF_KNOWN_HOSTS_PATH = '~/.ssh/known_hosts'
 DEF_SSH_CONF_PATH = '~/.ssh/config'
 
@@ -22,6 +23,7 @@ Commands:
   version             Print the version and exit
   config              Reconfigure options
   keybase             Configure keybase
+  alias               Configure ssh alias to autorun pritunl-ssh
   info                Show current certificate information
   renew               Force certificate renewal
   clear               Remove all configuration changes made by Pritunl
@@ -119,6 +121,8 @@ if not conf_pub_key_path or not os.path.exists(
     conf_pub_key_path = os.path.normpath(conf_pub_key_path)
     changed = True
 
+bash_profile_path_full = os.path.expanduser(BASH_PROFILE_PATH)
+
 ssh_config_path = conf_ssh_config_path or DEF_SSH_CONF_PATH
 ssh_config_path_full = os.path.expanduser(ssh_config_path)
 
@@ -139,6 +143,40 @@ if not pub_key_path_full.endswith('.pub'):
     sys.exit(1)
 
 print 'SSH_KEY: ' + conf_pub_key_path
+
+if '--alias' in sys.argv[1:] or 'alias' in sys.argv[1:]:
+    bash_profile_modified = False
+    bash_profile_data = ''
+
+    if os.path.exists(bash_profile_path_full):
+        with open(bash_profile_path_full, 'r') as known_file:
+            for line in known_file.readlines():
+                if line.strip().endswith('# pritunl-zero'):
+                    bash_profile_modified = True
+                    continue
+                bash_profile_data += line
+
+    if bash_profile_data and not bash_profile_data.endswith('\n\n'):
+        if bash_profile_data.endswith('\n'):
+            bash_profile_data += '\n'
+        else:
+            bash_profile_data += '\n\n'
+
+    keybase_input = raw_input(
+        'Enable ssh alias to autorun pritunl-ssh? [Y/n]: ')
+    if not keybase_input.lower().startswith('n'):
+        bash_profile_modified = True
+        bash_profile_data += 'alias ssh="pritunl-ssh; ssh" # pritunl-zero\n'
+
+    if bash_profile_modified:
+        print 'BASH_PROFILE: ' + BASH_PROFILE_PATH
+        with open(bash_profile_path_full, 'w') as bash_profile_file:
+            bash_profile_file.write(bash_profile_data)
+
+        print 'Bash profile configured open new shell or run ' + \
+            '"source %s" to update environment' % BASH_PROFILE_PATH
+
+    sys.exit(0)
 
 if '--clear-strict-host' in sys.argv[1:] or \
         'clear-strict-host' in sys.argv[1:]:
@@ -321,7 +359,7 @@ if '--keybase' in sys.argv[1:] or 'keybase' in sys.argv[1:]:
 
 if keybase_username and conf_keybase_state is None:
     keybase_input = raw_input('Authenticate with Keybase? [Y/n]: ')
-    if not keybase_input.startswith('n'):
+    if not keybase_input.lower().startswith('n'):
         keybase_associate = True
     else:
         conf_keybase_state = False
