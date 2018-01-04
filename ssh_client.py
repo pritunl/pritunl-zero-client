@@ -26,7 +26,7 @@ Commands:
   alias               Configure ssh alias to autorun pritunl-ssh
   info                Show current certificate information
   renew               Force certificate renewal
-  clear               Remove all configuration changes made by Pritunl
+  clear               Remove all configuration changes made by Pritunl SSH
   clear-strict-host   Remove strict host checking configuration changes
   clear-bastion-host  Remove bastion host configuration changes"""
 
