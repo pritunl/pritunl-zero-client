@@ -83,6 +83,7 @@ if os.path.isfile(CONF_PATH):
 
 def write_conf():
     with open(CONF_PATH, 'w') as conf_file:
+        os.chmod(CONF_PATH, 0600)
         conf_file.write(json.dumps({
             'hostname': conf_hostname,
             'server': conf_server,
@@ -474,6 +475,7 @@ if ssh_config_modified:
 
 print('SSH_CERT: ' + cert_path)
 with open(cert_path, 'w') as ssh_file:
+    os.chmod(cert_path, 0644)
     ssh_file.write('\n'.join(certificates))
 
 sys.exit(0)

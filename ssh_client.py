@@ -197,6 +197,7 @@ if '--clear-strict-host' in sys.argv[1:] or \
     if known_hosts_modified:
         print 'KNOWN_HOSTS: ' + known_hosts_path
         with open(known_hosts_path_full, 'w') as known_file:
+            os.chmod(known_hosts_path_full, 0600)
             known_file.write(known_hosts_data)
 
     ssh_config_modified = False
@@ -230,6 +231,7 @@ if '--clear-strict-host' in sys.argv[1:] or \
     if ssh_config_modified:
         print 'SSH_CONFIG: ' + ssh_config_path
         with open(ssh_config_path_full, 'w') as config_file:
+            os.chmod(ssh_config_path_full, 0600)
             config_file.write(ssh_config_data)
 
     print 'Successfully cleared strict host checking configuration'
@@ -254,6 +256,7 @@ if '--clear-bastion-host' in sys.argv[1:] or \
     if known_hosts_modified:
         print 'KNOWN_HOSTS: ' + known_hosts_path
         with open(known_hosts_path_full, 'w') as known_file:
+            os.chmod(known_hosts_path_full, 0600)
             known_file.write(known_hosts_data)
 
     ssh_config_modified = False
@@ -287,6 +290,7 @@ if '--clear-bastion-host' in sys.argv[1:] or \
     if ssh_config_modified:
         print 'SSH_CONFIG: ' + ssh_config_path
         with open(ssh_config_path_full, 'w') as config_file:
+            os.chmod(ssh_config_path_full, 0600)
             config_file.write(ssh_config_data)
 
     print 'Successfully cleared bastion host configuration'
@@ -310,6 +314,7 @@ if '--clear' in sys.argv[1:] or 'clear' in sys.argv[1:]:
     if known_hosts_modified:
         print 'KNOWN_HOSTS: ' + known_hosts_path
         with open(known_hosts_path_full, 'w') as known_file:
+            os.chmod(known_hosts_path_full, 0600)
             known_file.write(known_hosts_data)
 
     ssh_config_modified = False
@@ -336,6 +341,7 @@ if '--clear' in sys.argv[1:] or 'clear' in sys.argv[1:]:
     if ssh_config_modified:
         print 'SSH_CONFIG: ' + ssh_config_path
         with open(ssh_config_path_full, 'w') as config_file:
+            os.chmod(ssh_config_path_full, 0600)
             config_file.write(ssh_config_data)
 
     print 'Successfully cleared SSH configuration'
@@ -507,6 +513,7 @@ if keybase_associate:
     conf_keybase_state = True
 
 with open(conf_path, 'w') as conf_file:
+    os.chmod(conf_path, 0600)
     conf_file.write(json.dumps({
         'server': conf_zero_server,
         'public_key_path': conf_pub_key_path,
@@ -830,6 +837,7 @@ cert_authorities = cert_data.get('certificate_authorities')
 cert_hosts = cert_data.get('hosts')
 
 with open(cert_path_full, 'w') as cert_file:
+    os.chmod(cert_path_full, 0600)
     cert_file.write('\n'.join(certificates) + '\n')
 
 print 'CERTIFICATE: ' + cert_path
@@ -852,6 +860,7 @@ if os.path.exists(known_hosts_path_full):
 if known_hosts_modified:
     print 'KNOWN_HOSTS: ' + known_hosts_path
     with open(known_hosts_path_full, 'w') as known_file:
+        os.chmod(known_hosts_path_full, 0600)
         known_file.write(known_hosts_data)
 
 ssh_config_modified = False
@@ -899,6 +908,7 @@ for cert_host in cert_hosts or []:
 if ssh_config_modified:
     print 'SSH_CONFIG: ' + ssh_config_path
     with open(ssh_config_path_full, 'w') as config_file:
+        os.chmod(ssh_config_path_full, 0600)
         config_file.write(ssh_config_data)
 
 print 'Successfully validated SSH key'
