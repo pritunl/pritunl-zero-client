@@ -98,6 +98,18 @@ def write_conf():
             'public_address6': conf_public_address6,
         }))
 
+_null = open(os.devnull, 'w')
+def check_call_silent(*args, **kwargs):
+    if 'stdout' in kwargs or 'stderr' in kwargs:
+        raise ValueError('Output arguments not allowed, it will be overridden')
+
+    process = subprocess.Popen(stdout=_null, stderr=_null, *args, **kwargs)
+    return_code = process.wait()
+
+    if return_code:
+        cmd = kwargs.get('args', args[0])
+        raise subprocess.CalledProcessError(return_code, cmd)
+
 if '--config' in sys.argv[1:] or 'config' in sys.argv[1:]:
     key = sys.argv[2]
     try:
@@ -472,6 +484,15 @@ if ssh_config_modified:
     print('SSH_CONFIG: ' + ssh_conf_path)
     with open(ssh_conf_path, 'w') as ssh_file:
         ssh_file.write(ssh_config_data)
+
+    try:
+        check_call_silent(['systemctl', 'restart', 'sshd'])
+    except:
+        pass
+    try:
+        check_call_silent(['service', 'sshd', 'restart'])
+    except:
+        pass
 
 print('SSH_CERT: ' + cert_path)
 with open(cert_path, 'w') as ssh_file:
