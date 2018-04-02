@@ -9,6 +9,7 @@ import datetime
 import subprocess
 import threading
 import socket
+import hashlib
 import BaseHTTPServer
 try:
     import boto3
@@ -53,6 +54,7 @@ conf_aws_access_key = None
 conf_aws_secret_key = None
 conf_route_53_zone = None
 conf_route_53_updated = None
+conf_route_53_hash = None
 conf_public_address = None
 conf_public_address6 = None
 
@@ -78,6 +80,7 @@ if os.path.isfile(CONF_PATH):
         conf_aws_secret_key = conf_data.get('aws_secret_key')
         conf_route_53_zone = conf_data.get('route_53_zone')
         conf_route_53_updated = conf_data.get('route_53_updated')
+        conf_route_53_hash = conf_data.get('route_53_hash')
         conf_public_address = conf_data.get('public_address')
         conf_public_address6 = conf_data.get('public_address6')
 
@@ -94,6 +97,7 @@ def write_conf():
             'aws_secret_key': conf_aws_secret_key,
             'route_53_zone': conf_route_53_zone,
             'route_53_updated': conf_route_53_updated,
+            'route_53_hash': conf_route_53_hash,
             'public_address': conf_public_address,
             'public_address6': conf_public_address6,
         }))
@@ -130,19 +134,14 @@ if '--config' in sys.argv[1:] or 'config' in sys.argv[1:]:
         conf_ssh_config_path = value
     elif key == 'aws-access-key':
         conf_aws_access_key = value
-        conf_route_53_updated = 0
     elif key == 'aws-secret-key':
         conf_aws_secret_key = value
-        conf_route_53_updated = 0
     elif key == 'route-53-zone':
         conf_route_53_zone = value
-        conf_route_53_updated = 0
     elif key == 'public-address6':
         conf_public_address = value
-        conf_route_53_updated = 0
     elif key == 'public-address':
         conf_public_address6 = value
-        conf_route_53_updated = 0
     elif key == 'clear-tokens':
         conf_tokens = []
     elif key == 'add-token':
@@ -205,6 +204,16 @@ def get_public_addr():
     resp_data = resp.read()
     return json.loads(resp_data)['ip']
 
+def get_route53_hash(public_addr):
+    hash = hashlib.md5()
+    hash.update((conf_aws_access_key or '') + ':')
+    hash.update((conf_aws_secret_key or '') + ':')
+    hash.update((conf_route_53_zone or '') + ':')
+    hash.update((hostname or '') + ':')
+    hash.update((public_addr or '') + ':')
+    hash.update((conf_public_address6 or ''))
+    return hash.hexdigest()
+
 def set_zone_record(zone_name, host_name, ip_addr, ip_addr6):
     for i in xrange(3):
         try:
@@ -216,6 +225,8 @@ def set_zone_record(zone_name, host_name, ip_addr, ip_addr6):
         time.sleep(1)
 
 def _set_zone_record(zone_name, host_name, ip_addr, ip_addr6):
+    zone_name = zone_name.rstrip('.')
+
     client = boto3.client(
         'route53',
         aws_access_key_id=conf_aws_access_key,
@@ -226,7 +237,7 @@ def _set_zone_record(zone_name, host_name, ip_addr, ip_addr6):
     hosted_zone_name = None
     hosted_zones = client.list_hosted_zones_by_name()
     for hosted_zone in hosted_zones['HostedZones']:
-        if hosted_zone['Name'].startswith(zone_name):
+        if zone_name.endswith(hosted_zone['Name'].rstrip('.')):
             hosted_zone_id = hosted_zone['Id']
             hosted_zone_name = hosted_zone['Name']
 
@@ -234,7 +245,7 @@ def _set_zone_record(zone_name, host_name, ip_addr, ip_addr6):
         print('ERROR: Failed to find hosted zone ID for %r' % zone_name)
         sys.exit(1)
 
-    record_name = host_name + '.' + hosted_zone_name
+    record_name = host_name + '.' + zone_name + '.'
 
     records = client.list_resource_record_sets(
         HostedZoneId=hosted_zone_id,
@@ -246,7 +257,7 @@ def _set_zone_record(zone_name, host_name, ip_addr, ip_addr6):
     for record in records['ResourceRecordSets']:
         if record.get('Type') not in ('A', 'AAAA'):
             continue
-        if record.get('Name') != record_name:
+        if record.get('Name').rstrip('.') != record_name.rstrip('.'):
             continue
 
         if len(record['ResourceRecords']) == 1:
@@ -347,12 +358,15 @@ if conf_route_53_zone:
         print('ERROR: Route53 configured but Boto library missing')
         sys.exit(1)
 
+    if conf_public_address:
+        public_addr = conf_public_address
+    else:
+        public_addr = get_public_addr()
+
     cur_time = int(time.time())
-    if cur_time - (conf_route_53_updated or 0) >= 3600:
-        if conf_public_address:
-            public_addr = conf_public_address
-        else:
-            public_addr = get_public_addr()
+    cur_route53_hash = get_route53_hash(public_addr)
+    if cur_route53_hash != conf_route_53_hash or \
+            cur_time - (conf_route_53_updated or 0) >= 43200:
 
         print('ROUTE53: %s %s %s' % (
             hostname + '.' + conf_route_53_zone,
@@ -368,6 +382,7 @@ if conf_route_53_zone:
         )
 
         conf_route_53_updated = cur_time
+        conf_route_53_hash = cur_route53_hash
         write_conf()
 
 cert_valid = False
