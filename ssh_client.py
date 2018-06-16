@@ -22,7 +22,6 @@ Commands:
   help                Show help
   version             Print the version and exit
   config              Reconfigure options
-  keybase             Configure keybase
   alias               Configure ssh alias to autorun pritunl-ssh
   info                Show current certificate information
   renew               Force certificate renewal
@@ -32,23 +31,11 @@ Commands:
 
 conf_zero_server = None
 conf_pub_key_path = None
-conf_keybase_state = None
 conf_known_hosts_path = None
 conf_ssh_config_path = None
-keybase_username = None
 ssh_dir_path = os.path.expanduser(SSH_DIR)
 conf_path = os.path.expanduser(CONF_PATH)
 changed = False
-
-try:
-    keybase_status = subprocess.check_output(
-        ["keybase", "status", "--json"],
-        stderr=subprocess.PIPE,
-    )
-    keybase_data = json.loads(keybase_status)
-    keybase_username = keybase_data['Username']
-except:
-    pass
 
 if '--help' in sys.argv[1:] or 'help' in sys.argv[1:]:
     print USAGE
@@ -67,7 +54,6 @@ if '--config' not in sys.argv[1:] and \
             conf_data = json.loads(conf_data)
             conf_zero_server = conf_data.get('server')
             conf_pub_key_path = conf_data.get('public_key_path')
-            conf_keybase_state = conf_data.get('keybase_state')
             conf_known_hosts_path = conf_data.get('known_hosts_path')
             conf_ssh_config_path = conf_data.get('ssh_config_path')
         except:
@@ -162,9 +148,9 @@ if '--alias' in sys.argv[1:] or 'alias' in sys.argv[1:]:
         else:
             bash_profile_data += '\n\n'
 
-    keybase_input = raw_input(
+    ssh_input = raw_input(
         'Enable ssh alias to autorun pritunl-ssh? [Y/n]: ')
-    if not keybase_input.lower().startswith('n'):
+    if not ssh_input.lower().startswith('n'):
         bash_profile_modified = True
         bash_profile_data += 'alias ssh="pritunl-ssh; ssh" # pritunl-zero\n'
 
@@ -354,179 +340,14 @@ if '--info' in sys.argv[1:] or 'info' in sys.argv[1:]:
     subprocess.check_call(['ssh-keygen', '-L', '-f', cert_path_full])
     sys.exit(0)
 
-keybase_associate = False
-keybase_exit = False
-if '--keybase' in sys.argv[1:] or 'keybase' in sys.argv[1:]:
-    if not keybase_username:
-        print 'ERROR: Unable to read keybase status'
-        sys.exit(1)
-    conf_keybase_state = None
-    keybase_exit = True
-
-if keybase_username and conf_keybase_state is None:
-    keybase_input = raw_input('Authenticate with Keybase? [Y/n]: ')
-    if not keybase_input.lower().startswith('n'):
-        keybase_associate = True
-    else:
-        conf_keybase_state = False
-
-if keybase_associate:
-    req = urllib2.Request(
-        conf_zero_server + '/keybase/associate',
-        data=json.dumps({
-            'username': keybase_username,
-        }),
-    )
-    req.add_header('Content-Type', 'application/json')
-    req.get_method = lambda: 'POST'
-    resp_data = ''
-    resp_error = None
-    status_code = None
-    try:
-        resp = urllib2.urlopen(req)
-        resp_data = resp.read()
-        status_code = resp.getcode()
-    except urllib2.HTTPError as exception:
-        status_code = exception.code
-        try:
-            resp_data = exception.read()
-            resp_error = str(json.loads(resp_data)['error_msg'])
-        except:
-            pass
-
-    if status_code != 200:
-        if resp_error:
-            print 'ERROR: ' + resp_error
-        else:
-            print 'ERROR: Keybase association failed with status %d' % \
-                status_code
-            if resp_data:
-                print resp_data.strip()
-        sys.exit(1)
-
-    token = json.loads(resp_data)['token']
-    message = json.loads(resp_data)['message']
-
-    signature = subprocess.check_output(
-        ["keybase", "sign", "--message", message],
-    ).strip()
-
-    req = urllib2.Request(
-        conf_zero_server + '/keybase/check',
-        data=json.dumps({
-            'token': token,
-            'signature': signature,
-        }),
-    )
-    req.add_header('Content-Type', 'application/json')
-    req.get_method = lambda: 'PUT'
-    resp_data = ''
-    resp_error = None
-    status_code = None
-    try:
-        resp = urllib2.urlopen(req)
-        resp_data = resp.read()
-        status_code = resp.getcode()
-    except urllib2.HTTPError as exception:
-        status_code = exception.code
-        try:
-            resp_data = exception.read()
-            resp_error = str(json.loads(resp_data)['error_msg'])
-        except:
-            pass
-
-    if status_code != 200 and status_code != 404:
-        if resp_error:
-            print 'ERROR: ' + resp_error
-        else:
-            print 'ERROR: Keybase check failed with status %d' % status_code
-            if resp_data:
-                print resp_data.strip()
-        sys.exit(1)
-
-    if status_code == 404:
-        token_url = conf_zero_server + '/keybase?' + urllib.urlencode({
-            'keybase-token': token,
-            'keybase-sig': signature,
-        })
-
-        print 'OPEN: ' + token_url
-
-        try:
-            subprocess.Popen(
-                ['xdg-open', token_url],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-        except:
-            try:
-                subprocess.Popen(['open', token_url])
-            except:
-                pass
-
-        for _ in xrange(10):
-            req = urllib2.Request(
-                conf_zero_server + '/keybase/associate/' + token,
-            )
-            req.get_method = lambda: 'GET'
-            resp_data = ''
-            resp_error = None
-            status_code = None
-            try:
-                resp = urllib2.urlopen(req)
-                status_code = resp.getcode()
-                resp_data = resp.read()
-            except urllib2.HTTPError as exception:
-                status_code = exception.code
-                try:
-                    resp_data = exception.read()
-                    resp_error = str(json.loads(resp_data)['error_msg'])
-                except:
-                    pass
-
-            if status_code == 205:
-                continue
-            break
-
-        if status_code == 205:
-            print 'ERROR: Keybase association request timed out'
-            sys.exit(1)
-
-        elif status_code == 401:
-            print 'ERROR: Keybase association request was denied'
-            sys.exit(1)
-
-        elif status_code == 404:
-            print 'ERROR: Keybase association request has expired'
-            sys.exit(1)
-
-        elif status_code != 200:
-            if resp_error:
-                print 'ERROR: ' + resp_error
-            else:
-                print 'ERROR: Keybase association failed with status %d' % \
-                    status_code
-                if resp_data:
-                    print resp_data.strip()
-            sys.exit(1)
-
-    conf_keybase_state = True
-
 with open(conf_path, 'w') as conf_file:
     os.chmod(conf_path, 0600)
     conf_file.write(json.dumps({
         'server': conf_zero_server,
         'public_key_path': conf_pub_key_path,
-        'keybase_state': conf_keybase_state,
         'known_hosts_path': conf_known_hosts_path,
         'ssh_config_path': conf_ssh_config_path,
     }))
-
-if keybase_username and conf_keybase_state:
-    print 'KEYBASE_USERNAME: ' + keybase_username
-
-if keybase_exit:
-    sys.exit(0)
 
 cert_valid = False
 if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
@@ -559,54 +380,63 @@ if cert_valid:
 with open(pub_key_path_full, 'r') as pub_key_file:
     pub_key_data = pub_key_file.read().strip()
 
-if conf_keybase_state:
-    req = urllib2.Request(
-        conf_zero_server + '/keybase/challenge',
-        data=json.dumps({
-            'username': keybase_username,
-            'public_key': pub_key_data,
-        }),
-    )
-    req.add_header('Content-Type', 'application/json')
-    req.get_method = lambda: 'POST'
-    resp_data = ''
-    resp_error = None
-    status_code = None
+req = urllib2.Request(
+    conf_zero_server + '/ssh/challenge',
+    data=json.dumps({
+        'public_key': pub_key_data,
+    }),
+)
+req.add_header('Content-Type', 'application/json')
+req.get_method = lambda: 'POST'
+resp_data = ''
+resp_error = None
+status_code = None
+try:
+    resp = urllib2.urlopen(req)
+    resp_data = resp.read()
+    status_code = resp.getcode()
+except urllib2.HTTPError as exception:
+    status_code = exception.code
     try:
-        resp = urllib2.urlopen(req)
-        resp_data = resp.read()
-        status_code = resp.getcode()
-    except urllib2.HTTPError as exception:
-        status_code = exception.code
-        try:
-            resp_data = exception.read()
-            resp_error = str(json.loads(resp_data)['error_msg'])
-        except:
-            pass
+        resp_data = exception.read()
+        resp_error = str(json.loads(resp_data)['error_msg'])
+    except:
+        pass
 
-    if status_code != 200:
-        if resp_error:
-            print 'ERROR: ' + resp_error
-        else:
-            print 'ERROR: Keybase challenge failed with status %d' % \
-                status_code
-            if resp_data:
-                print resp_data.strip()
-        sys.exit(1)
+if status_code != 200:
+    if resp_error:
+        print 'ERROR: ' + resp_error
+    else:
+        print 'ERROR: SSH challenge request failed with status %d' % \
+            status_code
+        if resp_data:
+            print resp_data.strip()
+    sys.exit(1)
 
-    token = json.loads(resp_data)['token']
-    message = json.loads(resp_data)['message']
+token = json.loads(resp_data)['token']
 
-    signature = subprocess.check_output(
-        ["keybase", "sign", "--message", message],
-    ).strip()
-    keybase_data = json.loads(keybase_status)
+token_url = conf_zero_server + '/ssh?ssh-token=' + token
 
+print 'OPEN: ' + token_url
+
+try:
+    subprocess.Popen(
+        ['xdg-open', token_url],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+except:
+    try:
+        subprocess.Popen(['open', token_url])
+    except:
+        pass
+
+for _ in xrange(10):
     req = urllib2.Request(
-        conf_zero_server + '/keybase/challenge',
+        conf_zero_server + '/ssh/challenge',
         data=json.dumps({
+            'public_key': pub_key_data,
             'token': token,
-            'signature': signature,
         }),
     )
     req.add_header('Content-Type', 'application/json')
@@ -616,8 +446,8 @@ if conf_keybase_state:
     status_code = None
     try:
         resp = urllib2.urlopen(req)
-        resp_data = resp.read()
         status_code = resp.getcode()
+        resp_data = resp.read()
     except urllib2.HTTPError as exception:
         status_code = exception.code
         try:
@@ -625,211 +455,31 @@ if conf_keybase_state:
             resp_error = str(json.loads(resp_data)['error_msg'])
         except:
             pass
-
-    if status_code == 404:
-        print 'ERROR: Keybase challenge request has expired'
-        sys.exit(1)
-
-    elif status_code == 201:
-        secondary_data = json.loads(resp_data)
-        secondary_token = secondary_data['token']
-        print 'SECONDARY: %s' % secondary_data.get('label')
-
-        secondary_factors = []
-        if secondary_data.get('push'):
-            secondary_factors.append(('push', 'Push'))
-        if secondary_data.get('phone'):
-            secondary_factors.append(('phone', 'Call Me'))
-        if secondary_data.get('sms'):
-            secondary_factors.append(('sms', 'Text Me'))
-        if secondary_data.get('passcode'):
-            secondary_factors.append(('passcode', 'Passcode'))
-
-        def factor_challenge(factor, passcode):
-            req = urllib2.Request(
-                conf_zero_server + '/keybase/secondary',
-                data=json.dumps({
-                    'token': secondary_token,
-                    'factor': factor,
-                    'passcode': passcode,
-                }),
-            )
-            req.add_header('Content-Type', 'application/json')
-            req.get_method = lambda: 'PUT'
-            resp_data = ''
-            resp_error = None
-            status_code = None
-            try:
-                resp = urllib2.urlopen(req)
-                resp_data = resp.read()
-                status_code = resp.getcode()
-            except urllib2.HTTPError as exception:
-                status_code = exception.code
-                try:
-                    resp_data = exception.read()
-                    resp_error = str(json.loads(resp_data)['error_msg'])
-                except:
-                    pass
-
-            if status_code == 401:
-                print resp_error
-
-            elif status_code == 201 and factor == 'sms':
-                print 'Text message sent'
-
-            elif status_code != 200:
-                if resp_error:
-                    print 'ERROR: ' + resp_error
-                else:
-                    print 'ERROR: Secondary failed with status %d' % \
-                        status_code
-                    if resp_data:
-                        print resp_data.strip()
-            else:
-                return resp_data
-
-        while True:
-            if not secondary_factors:
-                print 'ERROR: Secondary authentication failed'
-                sys.exit(1)
-
-            if len(secondary_factors) == 1:
-                index = 0
-                factor = secondary_factors[0][0]
-            else:
-                print 'Select factor:'
-                for i, factor in enumerate(secondary_factors):
-                    print '[%d] %s' % (i + 1, factor[1])
-
-                factor_input = raw_input('Enter factor number: ')
-                try:
-                    index = int(factor_input) - 1
-                    factor = secondary_factors[index][0]
-                except (ValueError, IndexError):
-                    continue
-
-            if factor == 'passcode':
-                passcode = raw_input('Enter passcode: ')
-                if not passcode:
-                    continue
-            else:
-                passcode = None
-                secondary_factors.pop(index)
-
-            resp_data = factor_challenge(factor, passcode)
-            if resp_data:
-                break
-
-    elif status_code != 200:
-        if resp_error:
-            print 'ERROR: ' + resp_error
-        else:
-            print 'ERROR: Keybase challenge failed with status %d' % \
-                status_code
-            if resp_data:
-                print resp_data.strip()
-        sys.exit(1)
-else:
-    req = urllib2.Request(
-        conf_zero_server + '/ssh/challenge',
-        data=json.dumps({
-            'public_key': pub_key_data,
-        }),
-    )
-    req.add_header('Content-Type', 'application/json')
-    req.get_method = lambda: 'POST'
-    resp_data = ''
-    resp_error = None
-    status_code = None
-    try:
-        resp = urllib2.urlopen(req)
-        resp_data = resp.read()
-        status_code = resp.getcode()
-    except urllib2.HTTPError as exception:
-        status_code = exception.code
-        try:
-            resp_data = exception.read()
-            resp_error = str(json.loads(resp_data)['error_msg'])
-        except:
-            pass
-
-    if status_code != 200:
-        if resp_error:
-            print 'ERROR: ' + resp_error
-        else:
-            print 'ERROR: SSH challenge request failed with status %d' % \
-                status_code
-            if resp_data:
-                print resp_data.strip()
-        sys.exit(1)
-
-    token = json.loads(resp_data)['token']
-
-    token_url = conf_zero_server + '/ssh?ssh-token=' + token
-
-    print 'OPEN: ' + token_url
-
-    try:
-        subprocess.Popen(
-            ['xdg-open', token_url],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-    except:
-        try:
-            subprocess.Popen(['open', token_url])
-        except:
-            pass
-
-    for _ in xrange(10):
-        req = urllib2.Request(
-            conf_zero_server + '/ssh/challenge',
-            data=json.dumps({
-                'public_key': pub_key_data,
-                'token': token,
-            }),
-        )
-        req.add_header('Content-Type', 'application/json')
-        req.get_method = lambda: 'PUT'
-        resp_data = ''
-        resp_error = None
-        status_code = None
-        try:
-            resp = urllib2.urlopen(req)
-            status_code = resp.getcode()
-            resp_data = resp.read()
-        except urllib2.HTTPError as exception:
-            status_code = exception.code
-            try:
-                resp_data = exception.read()
-                resp_error = str(json.loads(resp_data)['error_msg'])
-            except:
-                pass
-
-        if status_code == 205:
-            continue
-        break
 
     if status_code == 205:
-        print 'ERROR: SSH verification request timed out'
-        sys.exit(1)
+        continue
+    break
 
-    elif status_code == 401:
-        print 'ERROR: SSH verification request was denied'
-        sys.exit(1)
+if status_code == 205:
+    print 'ERROR: SSH verification request timed out'
+    sys.exit(1)
 
-    elif status_code == 404:
-        print 'ERROR: SSH verification request has expired'
-        sys.exit(1)
+elif status_code == 401:
+    print 'ERROR: SSH verification request was denied'
+    sys.exit(1)
 
-    elif status_code != 200:
-        if resp_error:
-            print 'ERROR: ' + resp_error
-        else:
-            print 'ERROR: SSH verification failed with status %d' % status_code
-            if resp_data:
-                print resp_data.strip()
-        sys.exit(1)
+elif status_code == 404:
+    print 'ERROR: SSH verification request has expired'
+    sys.exit(1)
+
+elif status_code != 200:
+    if resp_error:
+        print 'ERROR: ' + resp_error
+    else:
+        print 'ERROR: SSH verification failed with status %d' % status_code
+        if resp_data:
+            print resp_data.strip()
+    sys.exit(1)
 
 cert_data = json.loads(resp_data)
 certificates = cert_data['certificates']
