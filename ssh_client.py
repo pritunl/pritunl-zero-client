@@ -72,20 +72,21 @@ print 'SERVER: ' + conf_zero_server
 
 if not conf_pub_key_path or not os.path.exists(
         os.path.expanduser(conf_pub_key_path)):
-    if not os.path.exists(ssh_dir_path):
+    ssh_names = []
+    if os.path.exists(ssh_dir_path):
+        for filename in os.listdir(ssh_dir_path):
+            if '.pub' not in filename or '-cert.pub' in filename:
+                continue
+            ssh_names.append(filename)
+
+    if not len(ssh_names):
         print 'ERROR: No SSH keys found, run "ssh-keygen" to create a key'
         sys.exit(1)
 
-    ssh_names = []
-
     print 'Select SSH key:'
 
-    for filename in os.listdir(ssh_dir_path):
-        if '.pub' not in filename or '-cert.pub' in filename:
-            continue
-
-        ssh_names.append(filename)
-        print '[%d] %s' % (len(ssh_names), filename)
+    for i, ssh_name in enumerate(ssh_names):
+        print '[%d] %s' % (i+1, ssh_name)
 
     while True:
         key_input = raw_input('Enter key number or full path to key: ')
