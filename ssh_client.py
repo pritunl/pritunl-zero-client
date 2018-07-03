@@ -7,6 +7,7 @@ import subprocess
 import urlparse
 import sys
 import datetime
+import base64
 
 VERSION = '1.0.937.22'
 SSH_DIR = '~/.ssh'
@@ -19,20 +20,22 @@ USAGE = """\
 Usage: pritunl-ssh [command]
 
 Commands:
-  help                Show help
-  version             Print the version and exit
-  config              Reconfigure options
-  alias               Configure ssh alias to autorun pritunl-ssh
-  info                Show current certificate information
-  renew               Force certificate renewal
-  clear               Remove all configuration changes made by Pritunl SSH
-  clear-strict-host   Remove strict host checking configuration changes
-  clear-bastion-host  Remove bastion host configuration changes"""
+  help                 Show help
+  version              Print the version and exit
+  config               Reconfigure options
+  alias                Configure ssh alias to autorun pritunl-ssh
+  info                 Show current certificate information
+  renew                Force certificate renewal
+  clear                Remove all configuration changes made by Pritunl SSH
+  clear-strict-host    Remove strict host checking configuration changes
+  clear-bastion-host   Remove bastion host configuration changes
+  register-smart-card  Register the current Smart Card with Pritunl Zero"""
 
 conf_zero_server = None
 conf_pub_key_path = None
 conf_known_hosts_path = None
 conf_ssh_config_path = None
+conf_ssh_card_serial = None
 ssh_dir_path = os.path.expanduser(SSH_DIR)
 conf_path = os.path.expanduser(CONF_PATH)
 changed = False
@@ -56,8 +59,48 @@ if '--config' not in sys.argv[1:] and \
             conf_pub_key_path = conf_data.get('public_key_path')
             conf_known_hosts_path = conf_data.get('known_hosts_path')
             conf_ssh_config_path = conf_data.get('ssh_config_path')
+            conf_ssh_card_serial = conf_data.get('ssh_card_serial')
         except:
             print 'WARNING: Failed to parse config file'
+
+card_name = None
+card_serial = None
+card_pub_key = None
+try:
+    card_status = subprocess.check_output(['gpg', '--card-status'],
+        stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+    for line in card_status.splitlines():
+        if line.startswith('Reader') and not card_name:
+            card_name = line.split(':', 1)[-1].strip()
+        elif line.startswith('Serial number') and not card_serial:
+           card_serial = line.split(':', 1)[-1].strip()
+
+    if card_name and card_serial:
+        card_keys = subprocess.check_output(['ssh-add', '-L'],
+            stderr=subprocess.PIPE)
+        for line in card_keys.splitlines():
+            if 'cardno:' in line:
+                if card_serial in line.split('cardno:', 1)[-1].strip():
+                    card_pub_key = line.strip()
+                    break
+except:
+    pass
+
+if conf_ssh_card_serial:
+    if not card_serial:
+        print 'ERROR: Missing Smart Card'
+        print 'If card is connected try running pritunl-ssh reset-gpg'
+        sys.exit(1)
+
+    if card_serial != conf_ssh_card_serial:
+        print 'ERROR: Incorrect Smart Card serial'
+        print 'Insert correct card, remove any other Smart Cards'
+        sys.exit(1)
+
+    if not card_pub_key:
+        print 'ERROR: Failed to load Smart Card public key'
+        print 'If device is configured, try running pritunl-ssh reset-gpg'
+        sys.exit(1)
 
 if not conf_zero_server:
     while True:
@@ -70,9 +113,14 @@ if not conf_zero_server:
 
 print 'SERVER: ' + conf_zero_server
 
-if not conf_pub_key_path or not os.path.exists(
-        os.path.expanduser(conf_pub_key_path)):
+ask_register_card = False
+if not conf_ssh_card_serial and (not conf_pub_key_path or
+        not os.path.exists(os.path.expanduser(conf_pub_key_path))):
     ssh_names = []
+
+    if card_name and card_serial:
+        ssh_names.append(card_name)
+
     if os.path.exists(ssh_dir_path):
         for filename in os.listdir(ssh_dir_path):
             if '.pub' not in filename or '-cert.pub' in filename:
@@ -83,29 +131,38 @@ if not conf_pub_key_path or not os.path.exists(
         print 'ERROR: No SSH keys found, run "ssh-keygen" to create a key'
         sys.exit(1)
 
-    print 'Select SSH key:'
+    print 'Select SSH key or device:'
 
     for i, ssh_name in enumerate(ssh_names):
         print '[%d] %s' % (i+1, ssh_name)
 
     while True:
-        key_input = raw_input('Enter key number or full path to key: ')
+        key_input = raw_input('Enter number or full path to key: ')
         if key_input:
             break
 
     try:
         index = int(key_input) - 1
-        conf_pub_key_path = os.path.join(SSH_DIR, ssh_names[index])
+
+        if card_name and card_serial and index == 0:
+            conf_ssh_card_serial = card_serial
+        else:
+            conf_pub_key_path = os.path.join(SSH_DIR, ssh_names[index])
     except (ValueError, IndexError):
         pass
 
-    if not conf_pub_key_path:
+    if not conf_pub_key_path and not conf_ssh_card_serial:
         if key_input in ssh_names:
             conf_pub_key_path = os.path.join(SSH_DIR, key_input)
         else:
             conf_pub_key_path = key_input
 
-    conf_pub_key_path = os.path.normpath(conf_pub_key_path)
+    if conf_ssh_card_serial:
+        conf_pub_key_path = None
+        ask_register_card = True
+    else:
+        conf_ssh_card_serial = None
+        conf_pub_key_path = os.path.normpath(conf_pub_key_path)
     changed = True
 
 bash_profile_path_full = os.path.expanduser(BASH_PROFILE_PATH)
@@ -116,20 +173,27 @@ ssh_config_path_full = os.path.expanduser(ssh_config_path)
 known_hosts_path = conf_known_hosts_path or DEF_KNOWN_HOSTS_PATH
 known_hosts_path_full = os.path.expanduser(known_hosts_path)
 
-cert_path = conf_pub_key_path.rsplit('.pub', 1)[0] + '-cert.pub'
-cert_path_full = os.path.expanduser(cert_path)
+if conf_ssh_card_serial:
+    cert_path = SSH_DIR + '/pritunl-cert.pub'
+    cert_path_full = os.path.expanduser(cert_path)
+else:
+    cert_path = conf_pub_key_path.rsplit('.pub', 1)[0] + '-cert.pub'
+    cert_path_full = os.path.expanduser(cert_path)
 
-pub_key_path_full = os.path.expanduser(conf_pub_key_path)
+if conf_ssh_card_serial:
+    print 'SSH_DEVICE: ' + conf_ssh_card_serial
+else:
+    pub_key_path_full = os.path.expanduser(conf_pub_key_path)
 
-if not os.path.exists(pub_key_path_full):
-    print 'ERROR: Selected SSH key does not exist'
-    sys.exit(1)
+    if not os.path.exists(pub_key_path_full):
+        print 'ERROR: Selected SSH key does not exist'
+        sys.exit(1)
 
-if not pub_key_path_full.endswith('.pub'):
-    print 'ERROR: SSH key path must end with .pub'
-    sys.exit(1)
+    if not pub_key_path_full.endswith('.pub'):
+        print 'ERROR: SSH key path must end with .pub'
+        sys.exit(1)
 
-print 'SSH_KEY: ' + conf_pub_key_path
+    print 'SSH_KEY: ' + conf_pub_key_path
 
 if '--alias' in sys.argv[1:] or 'alias' in sys.argv[1:]:
     bash_profile_modified = False
@@ -348,7 +412,34 @@ with open(conf_path, 'w') as conf_file:
         'public_key_path': conf_pub_key_path,
         'known_hosts_path': conf_known_hosts_path,
         'ssh_config_path': conf_ssh_config_path,
+        'ssh_card_serial': conf_ssh_card_serial,
     }))
+
+register_card = False
+if ask_register_card:
+    register_input = raw_input('Register Smart Card? [Y/n]: ')
+    register_card = not register_input.lower().startswith('n')
+
+if '--register-smart-card' in sys.argv[1:] or \
+        'register-smart-card' in sys.argv[1:] or register_card:
+    device_key = base64.urlsafe_b64encode(card_pub_key)
+    device_url = conf_zero_server + '/ssh?device=' + device_key
+
+    print 'OPEN: ' + device_url
+
+    try:
+        subprocess.Popen(
+            ['xdg-open', device_url],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except:
+        try:
+            subprocess.Popen(['open', device_url])
+        except:
+            pass
+
+    exit(0)
 
 cert_valid = False
 if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
@@ -378,8 +469,11 @@ if cert_valid:
     print 'Certificate has not expired'
     sys.exit(0)
 
-with open(pub_key_path_full, 'r') as pub_key_file:
-    pub_key_data = pub_key_file.read().strip()
+if conf_ssh_card_serial:
+    pub_key_data = card_pub_key
+else:
+    with open(pub_key_path_full, 'r') as pub_key_file:
+        pub_key_data = pub_key_file.read().strip()
 
 req = urllib2.Request(
     conf_zero_server + '/ssh/challenge',
@@ -522,7 +616,10 @@ if os.path.exists(ssh_config_path_full):
     with open(ssh_config_path_full, 'r') as config_file:
         for line in config_file.readlines() + ['\n']:
             if host_skip:
-                if host_skip > 1 and not line.startswith('	'):
+                if line.startswith('CertificateFile'):
+                    host_skip = 0
+                    continue
+                elif host_skip > 1 and not line.startswith('	'):
                     host_skip = 0
                 else:
                     host_skip += 1
@@ -540,6 +637,11 @@ if ssh_config_data and not ssh_config_data.endswith('\n\n'):
         ssh_config_data += '\n'
     else:
         ssh_config_data += '\n\n'
+
+if conf_ssh_card_serial:
+    ssh_config_modified = True
+    ssh_config_data += '# pritunl-zero\nCertificateFile %s\n' % \
+        cert_path
 
 for cert_host in cert_hosts or []:
     ssh_config_modified = True
