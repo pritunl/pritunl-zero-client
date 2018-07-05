@@ -125,6 +125,12 @@ try:
 except:
     pass
 
+try:
+    subprocess.check_call(['gpg-connect-agent', 'updatestartuptty', '/bye'],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+except:
+    pass
+
 if conf_ssh_card_serial:
     if not card_serial:
         print 'ERROR: Missing Smart Card'
