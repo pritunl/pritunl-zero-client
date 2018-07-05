@@ -8,6 +8,7 @@ import urlparse
 import sys
 import datetime
 import base64
+import time
 
 VERSION = '1.0.937.22'
 SSH_DIR = '~/.ssh'
@@ -29,7 +30,8 @@ Commands:
   clear                Remove all configuration changes made by Pritunl SSH
   clear-strict-host    Remove strict host checking configuration changes
   clear-bastion-host   Remove bastion host configuration changes
-  register-smart-card  Register the current Smart Card with Pritunl Zero"""
+  register-smart-card  Register the current Smart Card with Pritunl Zero
+  gpg-reset            Reset GPG Smart Card agent"""
 
 conf_zero_server = None
 conf_pub_key_path = None
@@ -46,6 +48,43 @@ if '--help' in sys.argv[1:] or 'help' in sys.argv[1:]:
 
 if '--version' in sys.argv[1:] or 'version' in sys.argv[1:]:
     print 'pritunl-ssh v' + VERSION
+    sys.exit(0)
+
+if '--gpg-reset' in sys.argv[1:] or 'gpg-reset' in sys.argv[1:]:
+    try:
+        subprocess.check_call(
+            ['killall', 'pinentry'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except:
+        pass
+    try:
+        subprocess.check_call(
+            ['killall', 'gpg-agent'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except:
+        pass
+    time.sleep(3)
+    try:
+        subprocess.check_call(
+            ['gpg-agent', '--daemon'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except:
+        pass
+    try:
+        subprocess.check_call(
+            ['gpg-connect-agent', 'updatestartuptty', '/bye'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except:
+        pass
+    print 'GPG agent reset'
     sys.exit(0)
 
 if '--config' not in sys.argv[1:] and \
