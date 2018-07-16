@@ -9,6 +9,7 @@ import sys
 import datetime
 import base64
 import time
+import platform
 
 VERSION = '1.0.954.18'
 SSH_DIR = '~/.ssh'
@@ -125,11 +126,12 @@ try:
 except:
     pass
 
-try:
-    subprocess.check_call(['gpg-connect-agent', 'updatestartuptty', '/bye'],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-except:
-    pass
+if platform.system() == 'Darwin':
+    try:
+        subprocess.check_call(['gpg-connect-agent', 'updatestartuptty', '/bye'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except:
+        pass
 
 if conf_ssh_card_serial:
     if not card_serial:
