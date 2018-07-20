@@ -107,22 +107,26 @@ card_name = None
 card_serial = None
 card_pub_key = None
 try:
-    card_status = subprocess.check_output(['gpg', '--card-status'],
-        stderr=subprocess.PIPE, stdin=subprocess.PIPE)
-    for line in card_status.splitlines():
-        if line.startswith('Reader') and not card_name:
-            card_name = line.split(':', 1)[-1].strip()
-        elif line.startswith('Serial number') and not card_serial:
-           card_serial = line.split(':', 1)[-1].strip()
+    # card_status = subprocess.check_output(['gpg', '--card-status'],
+    #     stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+    # for line in card_status.splitlines():
+    #     if line.startswith('Manufacturer') and not card_name:
+    #         card_name = line.split(':', 1)[-1].strip()
+    #     elif line.startswith('Serial number') and not card_serial:
+    #        card_serial = line.split(':', 1)[-1].strip()
 
-    if card_name and card_serial:
-        card_keys = subprocess.check_output(['ssh-add', '-L'],
-            stderr=subprocess.PIPE)
-        for line in card_keys.splitlines():
-            if 'cardno:' in line:
-                if card_serial in line.split('cardno:', 1)[-1].strip():
-                    card_pub_key = line.strip()
-                    break
+    #if card_name and card_serial:
+    card_keys = subprocess.check_output(['ssh-add', '-L'],
+        stderr=subprocess.PIPE)
+    for line in card_keys.splitlines():
+        if 'cardno:' in line:
+            card_serial = line.split('cardno:', 1)[-1].split()[0].strip()
+            if card_serial:
+                if len(card_serial) > 6:
+                    card_serial = card_serial[4:]
+                card_name = 'Smart Card'
+                card_pub_key = line.strip()
+                break
 except:
     pass
 
@@ -166,7 +170,7 @@ if not conf_ssh_card_serial and (not conf_pub_key_path or
     ssh_names = []
 
     if card_name and card_serial:
-        ssh_names.append(card_name)
+        ssh_names.append('%s (%s)' % (card_name, card_serial))
 
     if os.path.exists(ssh_dir_path):
         for filename in os.listdir(ssh_dir_path):
