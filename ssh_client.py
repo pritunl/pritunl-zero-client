@@ -377,7 +377,7 @@ if '--clear-bastion-host' in sys.argv[1:] or \
                         ssh_config_temp = None
                     else:
                         host_skip += 1
-                        if 'ProxyJump ' not in line:
+                        if 'ProxyCommand ' not in line:
                             ssh_config_temp.append(line)
                         continue
                 if line.startswith('# pritunl-zero'):
@@ -702,7 +702,7 @@ for cert_host in cert_hosts or []:
         ssh_config_data += '	StrictHostKeyChecking yes\n'
 
     if cert_host['proxy_host']:
-        ssh_config_data += '	ProxyJump %s\n' % cert_host['proxy_host']
+        ssh_config_data += '	ProxyCommand ssh -W %%h:%%p %s\n' % cert_host['proxy_host']
 
     if cert_host['proxy_host'] and cert_host['strict_host_checking']:
         ssh_config_data += '# pritunl-zero\nHost %s\n' % \
