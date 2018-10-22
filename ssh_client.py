@@ -11,7 +11,7 @@ import base64
 import time
 import platform
 
-VERSION = '1.0.969.91'
+VERSION = '1.0.1063.95'
 SSH_DIR = '~/.ssh'
 CONF_PATH = SSH_DIR + '/pritunl-zero.json'
 BASH_PROFILE_PATH = '~/.bash_profile'
