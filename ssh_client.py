@@ -707,9 +707,10 @@ for cert_host in cert_hosts or []:
     if cert_host['proxy_host']:
         ssh_config_data += '	ProxyJump %s\n' % cert_host['proxy_host']
 
-    if cert_host['proxy_host'] and cert_host['strict_host_checking']:
+    if cert_host['proxy_host'] and (cert_host['strict_host_checking'] or
+            cert_host.get('strict_bastion_checking')):
         ssh_config_data += '# pritunl-zero\nHost %s\n' % \
-            cert_host['proxy_host'].split('@', 1)[-1]
+            cert_host['proxy_host'].split('@', 1)[-1].split(':', 1)[0]
         ssh_config_data += '	StrictHostKeyChecking yes\n'
 
 if ssh_config_modified:
