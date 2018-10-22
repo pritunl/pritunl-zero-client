@@ -181,7 +181,8 @@ if not conf_ssh_card_serial and (not conf_pub_key_path or
             ssh_names.append(filename)
 
     if not len(ssh_names):
-        print 'ERROR: No SSH keys found, run "ssh-keygen" to create a key'
+        print 'ERROR: No SSH keys found, run "ssh-keygen -t ed25519" ' + \
+            'to create a key'
         sys.exit(1)
 
     print 'Select SSH key or device:'
