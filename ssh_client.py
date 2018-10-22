@@ -132,8 +132,10 @@ except:
 
 if platform.system() == 'Darwin':
     try:
-        subprocess.check_call(['gpg-connect-agent', 'updatestartuptty', '/bye'],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.check_call(
+            ['gpg-connect-agent', 'updatestartuptty', '/bye'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
     except:
         pass
 
