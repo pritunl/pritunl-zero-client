@@ -7,8 +7,6 @@ import math
 import json
 import requests
 import os
-import zlib
-import werkzeug.http
 import getpass
 import base64
 from cryptography.hazmat.primitives import hashes
