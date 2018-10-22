@@ -204,19 +204,6 @@ def iter_packages():
 
             yield name, path
 
-def generate_last_modifited_etag(file_path):
-    file_name = os.path.basename(file_path).encode(sys.getfilesystemencoding())
-    file_mtime = datetime.datetime.utcfromtimestamp(
-        os.path.getmtime(file_path))
-    file_size = int(os.path.getsize(file_path))
-    last_modified = werkzeug.http.http_date(file_mtime)
-
-    return (last_modified, 'wzsdm-%d-%s-%s' % (
-        time.mktime(file_mtime.timetuple()),
-        file_size,
-        zlib.adler32(file_name) & 0xffffffff,
-    ))
-
 with open(CONSTANTS_PATH, 'r') as constants_file:
     cur_version = re.findall('= \'(.*?)\'', constants_file.read())[0]
 
