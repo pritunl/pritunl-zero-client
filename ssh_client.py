@@ -228,11 +228,11 @@ known_hosts_path = conf_known_hosts_path or DEF_KNOWN_HOSTS_PATH
 known_hosts_path_full = os.path.expanduser(known_hosts_path)
 
 if conf_ssh_card_serial:
-    cert_path = SSH_DIR + '/pritunl-cert.pub'
-    cert_path_full = os.path.expanduser(cert_path)
+    base_cert_path = SSH_DIR + '/pritunl-cert.pub'
+    base_cert_path_full = os.path.expanduser(base_cert_path)
 else:
-    cert_path = conf_pub_key_path.rsplit('.pub', 1)[0] + '-cert.pub'
-    cert_path_full = os.path.expanduser(cert_path)
+    base_cert_path = conf_pub_key_path.rsplit('.pub', 1)[0] + '-cert.pub'
+    base_cert_path_full = os.path.expanduser(base_cert_path)
 
 if conf_ssh_card_serial:
     print 'SSH_DEVICE: ' + conf_ssh_card_serial
@@ -285,8 +285,12 @@ if '--alias' in sys.argv[1:] or 'alias' in sys.argv[1:]:
 
 if '--clear-strict-host' in sys.argv[1:] or \
         'clear-strict-host' in sys.argv[1:]:
-    if os.path.exists(cert_path_full):
-        os.remove(cert_path_full)
+    if os.path.exists(base_cert_path_full):
+        os.remove(base_cert_path_full)
+    for i in xrange(100):
+        num_cert_path = base_cert_path_full.replace('.pub', '%02d.pub' % i)
+        if os.path.exists(num_cert_path):
+            os.remove(num_cert_path)
 
     known_hosts_modified = False
     known_hosts_data = ''
@@ -344,8 +348,12 @@ if '--clear-strict-host' in sys.argv[1:] or \
 
 if '--clear-bastion-host' in sys.argv[1:] or \
         'clear-bastion-host' in sys.argv[1:]:
-    if os.path.exists(cert_path_full):
-        os.remove(cert_path_full)
+    if os.path.exists(base_cert_path_full):
+        os.remove(base_cert_path_full)
+    for i in xrange(100):
+        num_cert_path = base_cert_path_full.replace('.pub', '%02d.pub' % i)
+        if os.path.exists(num_cert_path):
+            os.remove(num_cert_path)
 
     known_hosts_modified = False
     known_hosts_data = ''
@@ -402,8 +410,12 @@ if '--clear-bastion-host' in sys.argv[1:] or \
     sys.exit(0)
 
 if '--clear' in sys.argv[1:] or 'clear' in sys.argv[1:]:
-    if os.path.exists(cert_path_full):
-        os.remove(cert_path_full)
+    if os.path.exists(base_cert_path_full):
+        os.remove(base_cert_path_full)
+    for i in xrange(100):
+        num_cert_path = base_cert_path_full.replace('.pub', '%02d.pub' % i)
+        if os.path.exists(num_cert_path):
+            os.remove(num_cert_path)
 
     known_hosts_modified = False
     known_hosts_data = ''
@@ -453,11 +465,25 @@ if '--clear' in sys.argv[1:] or 'clear' in sys.argv[1:]:
     sys.exit(0)
 
 if '--info' in sys.argv[1:] or 'info' in sys.argv[1:]:
-    if not os.path.exists(cert_path_full):
+    found = False
+    if os.path.exists(base_cert_path_full):
+        found = True
+        subprocess.check_call(['ssh-keygen', '-L', '-f', base_cert_path_full])
+        sys.exit(0)
+    else:
+        for i in xrange(100):
+            num_cert_path = base_cert_path_full.replace(
+                '.pub', '%02d.pub' % i)
+            if os.path.exists(num_cert_path):
+                found = True
+                subprocess.check_call(
+                    ['ssh-keygen', '-L', '-f', num_cert_path])
+
+    if found:
+        sys.exit(0)
+    else:
         print 'ERROR: No SSH certificates available'
         sys.exit(1)
-    subprocess.check_call(['ssh-keygen', '-L', '-f', cert_path_full])
-    sys.exit(0)
 
 with open(conf_path, 'w') as conf_file:
     os.chmod(conf_path, 0600)
@@ -498,11 +524,16 @@ if '--register-smart-card' in sys.argv[1:] or \
 cert_valid = False
 if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
     try:
-        if os.path.exists(cert_path_full):
-            cur_date = datetime.datetime.now() + datetime.timedelta(seconds=30)
+        cert_path = base_cert_path_full.replace('.pub', '00.pub')
+        if not os.path.exists(cert_path):
+            cert_path = base_cert_path_full
+
+        if os.path.exists(cert_path):
+            cur_date = datetime.datetime.now() + datetime.timedelta(
+                seconds=30)
 
             status = subprocess.check_output(
-                ['ssh-keygen', '-L', '-f', cert_path_full])
+                ['ssh-keygen', '-L', '-f', cert_path])
 
             cert_valid = True
             for line in status.splitlines():
@@ -635,11 +666,18 @@ certificates = cert_data['certificates']
 cert_authorities = cert_data.get('certificate_authorities')
 cert_hosts = cert_data.get('hosts')
 
-with open(cert_path_full, 'w') as cert_file:
-    os.chmod(cert_path_full, 0600)
-    cert_file.write('\n'.join(certificates) + '\n')
-
-print 'CERTIFICATE: ' + cert_path
+if len(certificates) < 2:
+    with open(base_cert_path_full, 'w') as cert_file:
+        os.chmod(base_cert_path_full, 0600)
+        cert_file.write('\n'.join(certificates) + '\n')
+    print 'CERTIFICATE: ' + base_cert_path
+else:
+    for i, certificate in enumerate(certificates):
+        num_cert_path = base_cert_path_full.replace('.pub', '%02d.pub' % i)
+        with open(num_cert_path, 'w') as cert_file:
+            os.chmod(num_cert_path, 0600)
+            cert_file.write(certificate + '\n')
+        print 'CERTIFICATE: ' + base_cert_path.replace('.pub', '%02d.pub' % i)
 
 known_hosts_modified = False
 known_hosts_data = ''
@@ -692,10 +730,17 @@ if ssh_config_data and not ssh_config_data.endswith('\n\n'):
     else:
         ssh_config_data += '\n\n'
 
-if conf_ssh_card_serial:
+if conf_ssh_card_serial or len(certificates) > 1:
     ssh_config_modified = True
-    ssh_config_data += '# pritunl-zero\nCertificateFile %s\n' % \
-        cert_path
+
+    if len(certificates) < 2:
+        ssh_config_data += '# pritunl-zero\nCertificateFile %s\n' % \
+            base_cert_path
+    else:
+        for i in range(len(certificates)):
+            num_cert_path = base_cert_path.replace('.pub', '%02d.pub' % i)
+            ssh_config_data += '# pritunl-zero\nCertificateFile %s\n' % \
+                num_cert_path
 
 for cert_host in cert_hosts or []:
     if cert_host['strict_host_checking'] or cert_host['proxy_host']:
