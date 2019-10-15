@@ -529,31 +529,45 @@ if '--register-smart-card' in sys.argv[1:] or \
 
     exit(0)
 
+def check_cert_valid(cert_path):
+    cur_date = datetime.datetime.now() + datetime.timedelta(
+        seconds=30)
+
+    status = subprocess.check_output(
+        ['ssh-keygen', '-L', '-f', cert_path])
+
+    cert_valid = True
+    for line in status.splitlines():
+        line = line.strip()
+        if line.startswith('Valid:'):
+            line = line.split('to')[-1].strip()
+            valid_to = datetime.datetime.strptime(
+                line, '%Y-%m-%dT%H:%M:%S')
+
+            if cur_date >= valid_to:
+                cert_valid = False
+                break
+
+    return cert_valid
+
 cert_valid = False
 if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
     try:
-        cert_path = base_cert_path_full.replace('.pub', '00.pub')
-        if not os.path.exists(cert_path):
-            cert_path = base_cert_path_full
-
-        if os.path.exists(cert_path):
-            cur_date = datetime.datetime.now() + datetime.timedelta(
-                seconds=30)
-
-            status = subprocess.check_output(
-                ['ssh-keygen', '-L', '-f', cert_path])
-
-            cert_valid = True
-            for line in status.splitlines():
-                line = line.strip()
-                if line.startswith('Valid:'):
-                    line = line.split('to')[-1].strip()
-                    valid_to = datetime.datetime.strptime(
-                        line, '%Y-%m-%dT%H:%M:%S')
-
-                    if cur_date >= valid_to:
+        if os.path.exists(base_cert_path_full):
+            cert_valid = check_cert_valid(base_cert_path_full)
+        else:
+            cert_valid = False
+            for i in xrange(100):
+                num_cert_path = base_cert_path_full.replace(
+                    '.pub', '%02d.pub' % i)
+                if os.path.exists(num_cert_path):
+                    if check_cert_valid(num_cert_path):
+                        cert_valid = True
+                    else:
                         cert_valid = False
                         break
+                else:
+                    break
     except Exception as exception:
         print 'WARN: Failed to get certificate expiration'
         print str(exception)
