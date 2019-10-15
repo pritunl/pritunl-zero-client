@@ -291,6 +291,8 @@ if '--clear-strict-host' in sys.argv[1:] or \
         num_cert_path = base_cert_path_full.replace('.pub', '%02d.pub' % i)
         if os.path.exists(num_cert_path):
             os.remove(num_cert_path)
+        else:
+            break
 
     known_hosts_modified = False
     known_hosts_data = ''
@@ -354,6 +356,8 @@ if '--clear-bastion-host' in sys.argv[1:] or \
         num_cert_path = base_cert_path_full.replace('.pub', '%02d.pub' % i)
         if os.path.exists(num_cert_path):
             os.remove(num_cert_path)
+        else:
+            break
 
     known_hosts_modified = False
     known_hosts_data = ''
@@ -416,6 +420,8 @@ if '--clear' in sys.argv[1:] or 'clear' in sys.argv[1:]:
         num_cert_path = base_cert_path_full.replace('.pub', '%02d.pub' % i)
         if os.path.exists(num_cert_path):
             os.remove(num_cert_path)
+        else:
+            break
 
     known_hosts_modified = False
     known_hosts_data = ''
@@ -478,6 +484,8 @@ if '--info' in sys.argv[1:] or 'info' in sys.argv[1:]:
                 found = True
                 subprocess.check_call(
                     ['ssh-keygen', '-L', '-f', num_cert_path])
+            else:
+                break
 
     if found:
         sys.exit(0)
@@ -672,6 +680,8 @@ for i in xrange(100):
     num_cert_path = base_cert_path_full.replace('.pub', '%02d.pub' % i)
     if os.path.exists(num_cert_path):
         os.remove(num_cert_path)
+    else:
+        break
 
 if len(certificates) < 2:
     with open(base_cert_path_full, 'w') as cert_file:
