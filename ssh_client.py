@@ -666,6 +666,13 @@ certificates = cert_data['certificates']
 cert_authorities = cert_data.get('certificate_authorities')
 cert_hosts = cert_data.get('hosts')
 
+if os.path.exists(base_cert_path_full):
+    os.remove(base_cert_path_full)
+for i in xrange(100):
+    num_cert_path = base_cert_path_full.replace('.pub', '%02d.pub' % i)
+    if os.path.exists(num_cert_path):
+        os.remove(num_cert_path)
+
 if len(certificates) < 2:
     with open(base_cert_path_full, 'w') as cert_file:
         os.chmod(base_cert_path_full, 0600)
