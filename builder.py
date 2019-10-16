@@ -300,7 +300,7 @@ if cmd == 'set-version':
         },
         data=json.dumps({
             'tag_name': new_version,
-            'description': '',
+            'description': 'Create new release',
         }),
     )
 
