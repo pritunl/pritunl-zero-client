@@ -81,7 +81,7 @@ def aes_decrypt(passphrase, data):
     ).decryptor()
     data = cipher.update(enc_data) + cipher.finalize()
 
-    return data.replace('\x00', '')
+    return data.decode('utf-8').replace('\x00', '')
 
 passphrase = getpass.getpass('Enter passphrase: ')
 
