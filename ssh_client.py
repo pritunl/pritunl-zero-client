@@ -11,7 +11,7 @@ import base64
 import time
 import platform
 
-VERSION = '1.0.1064.80'
+VERSION = '1.0.1422.5'
 SSH_DIR = '~/.ssh'
 CONF_PATH = SSH_DIR + '/pritunl-zero.json'
 BASH_PROFILE_PATH = '~/.bash_profile'
@@ -248,6 +248,23 @@ else:
         sys.exit(1)
 
     print 'SSH_KEY: ' + conf_pub_key_path
+
+if '--port-forward' in sys.argv[1:] or 'port-forward' in sys.argv[1:]:
+    ports = sys.argv[-1].split(':')
+
+    try:
+        subprocess.check_call([
+            'ssh',
+            '-N', '-L',
+            '%s:localhost:%s' % (ports[0], ports[1]),
+            sys.argv[-2]],
+            # stdout=subprocess.PIPE,
+            # stderr=subprocess.PIPE,
+        )
+    except KeyboardInterrupt:
+        sys.exit(0)
+
+    sys.exit(0)
 
 if '--alias' in sys.argv[1:] or 'alias' in sys.argv[1:]:
     bash_profile_modified = False
