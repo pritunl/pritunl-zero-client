@@ -39,7 +39,7 @@ def aes_encrypt(passphrase, data):
         iterations=1000,
         backend=default_backend(),
     )
-    enc_key = kdf.derive(passphrase)
+    enc_key = kdf.derive(passphrase.encode())
 
     data += '\x00' * (16 - (len(data) % 16))
 
@@ -48,12 +48,12 @@ def aes_encrypt(passphrase, data):
         modes.CBC(enc_iv),
         backend=default_backend()
     ).encryptor()
-    enc_data = cipher.update(data) + cipher.finalize()
+    enc_data = cipher.update(data.encode()) + cipher.finalize()
 
     return '\n'.join([
-        base64.b64encode(enc_salt),
-        base64.b64encode(enc_iv),
-        base64.b64encode(enc_data),
+        base64.b64encode(enc_salt).decode('utf-8'),
+        base64.b64encode(enc_iv).decode('utf-8'),
+        base64.b64encode(enc_data).decode('utf-8'),
     ])
 
 def aes_decrypt(passphrase, data):
@@ -72,7 +72,7 @@ def aes_decrypt(passphrase, data):
         iterations=1000,
         backend=default_backend(),
     )
-    enc_key = kdf.derive(passphrase)
+    enc_key = kdf.derive(passphrase.encode())
 
     cipher = Cipher(
         algorithms.AES(enc_key),
@@ -89,7 +89,7 @@ if cmd == 'encrypt':
     passphrase2 = getpass.getpass('Enter passphrase: ')
 
     if passphrase != passphrase2:
-        print 'ERROR: Passphrase mismatch'
+        print('ERROR: Passphrase mismatch')
         sys.exit(1)
 
     with open(BUILD_KEYS_PATH, 'r') as build_keys_file:
@@ -120,6 +120,7 @@ with open(BUILD_KEYS_PATH, 'r') as build_keys_file:
     github_owner = build_keys['github_owner']
     github_token = build_keys['github_token']
     gitlab_token = build_keys['gitlab_token']
+    gitlab_host = build_keys['gitlab_host']
     mirror_url = build_keys['mirror_url']
     test_mirror_url = build_keys['test_mirror_url']
 
@@ -131,7 +132,7 @@ def wget(url, cwd=None, output=None):
     subprocess.check_call(args, cwd=cwd)
 
 def post_git_asset(release_id, file_name, file_path):
-    for i in xrange(5):
+    for i in range(5):
         file_size = os.path.getsize(file_path)
         response = requests.post(
             'https://uploads.github.com/repos/%s/%s/releases/%s/assets' % (
@@ -156,8 +157,8 @@ def post_git_asset(release_id, file_name, file_path):
     data = response.json()
     errors = data.get('errors')
     if not errors or errors[0].get('code') != 'already_exists':
-        print 'Failed to create asset on github'
-        print data
+        print('Failed to create asset on github')
+        print(data)
         sys.exit(1)
 
 def get_ver(version):
@@ -206,7 +207,7 @@ with open(CONSTANTS_PATH, 'r') as constants_file:
     cur_version = re.findall('= \'(.*?)\'', constants_file.read())[0]
 
 if cmd == 'version':
-    print get_ver(sys.argv[2])
+    print(get_ver(sys.argv[2]))
 
 if cmd == 'set-version':
     new_version = get_ver(sys.argv[2])
@@ -244,13 +245,13 @@ if cmd == 'set-version':
     )
 
     if response.status_code != 200:
-        print 'Failed to get repo releases on github'
-        print response.json()
+        print('Failed to get repo releases on github')
+        print(response.json())
         sys.exit(1)
 
     for release in response.json():
         if release['tag_name'] == new_version:
-            print 'Version already exists in github'
+            print('Version already exists in github')
             sys.exit(1)
 
 
@@ -279,8 +280,8 @@ if cmd == 'set-version':
     )
 
     if response.status_code != 201:
-        print 'Failed to create release on github'
-        print response.json()
+        print('Failed to create release on github')
+        print(response.json())
         sys.exit(1)
 
     subprocess.check_call(['git', 'pull'])
@@ -290,9 +291,9 @@ if cmd == 'set-version':
 
     # Create gitlab release
     response = requests.post(
-        'https://git.pritunl.com/api/v4/projects' + \
-        '/%s%%2F%s/repository/tags/%s/release' % (
-            github_owner, REPO_NAME, new_version),
+        ('https://%s/api/v4/projects' +
+        '/%s%%2F%s/repository/tags/%s/release') % (
+            gitlab_host, github_owner, REPO_NAME, new_version),
         headers={
             'Private-Token': gitlab_token,
             'Content-type': 'application/json',
@@ -304,8 +305,8 @@ if cmd == 'set-version':
     )
 
     if response.status_code != 201:
-        print 'Failed to create release on gitlab'
-        print response.json()
+        print('Failed to create release on gitlab')
+        print(response.json())
         sys.exit(1)
 
 
@@ -343,7 +344,7 @@ if cmd == 'build' or cmd == 'build-test' or cmd == 'build-upload':
             )
             pkgbuild_data = re.sub(
                 '"[a-f0-9]{64}"',
-                '"%s"' % archive_sha256_sum,
+                '"%s"' % archive_sha256_sum.decode('utf-8'),
                 pkgbuild_data,
                 count=1,
             )
@@ -382,7 +383,7 @@ if cmd == 'upload' or cmd == 'upload-test' or cmd == 'build-upload':
             release_id = release['id']
 
     if not release_id:
-        print 'Version does not exists in github'
+        print('Version does not exists in github')
         sys.exit(1)
 
 
@@ -391,17 +392,14 @@ if cmd == 'upload' or cmd == 'upload-test' or cmd == 'build-upload':
         cwd=pacur_path,
     )
 
-    for mir_url in mirror_urls:
-        subprocess.check_call([
-            'rsync',
-            '--human-readable',
-            '--archive',
-            '--progress',
-            '--delete',
-            '--acls',
-            'mirror/',
-            mir_url,
-        ], cwd=pacur_path)
+    subprocess.check_call([
+        'mc',
+        'mirror',
+        '--remove',
+        '--overwrite',
+        'mirror',
+        'repo/stable',
+    ], cwd=pacur_path)
 
 
     for name, path in iter_packages():
