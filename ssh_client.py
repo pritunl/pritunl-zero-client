@@ -1,10 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import os
 import json
-import urllib
-import urllib2
+import urllib.request
+import urllib.parse
+import urllib.error
 import subprocess
-import urlparse
 import sys
 import datetime
 import base64
@@ -44,11 +44,11 @@ conf_path = os.path.expanduser(CONF_PATH)
 changed = False
 
 if '--help' in sys.argv[1:] or 'help' in sys.argv[1:]:
-    print USAGE
+    print(USAGE)
     sys.exit(0)
 
 if '--version' in sys.argv[1:] or 'version' in sys.argv[1:]:
-    print 'pritunl-ssh v' + VERSION
+    print('pritunl-ssh v' + VERSION)
     sys.exit(0)
 
 if '--gpg-reset' in sys.argv[1:] or 'gpg-reset' in sys.argv[1:]:
@@ -85,7 +85,7 @@ if '--gpg-reset' in sys.argv[1:] or 'gpg-reset' in sys.argv[1:]:
         )
     except:
         pass
-    print 'GPG agent reset'
+    print('GPG agent reset')
     sys.exit(0)
 
 if '--config' not in sys.argv[1:] and \
@@ -101,7 +101,7 @@ if '--config' not in sys.argv[1:] and \
             conf_ssh_config_path = conf_data.get('ssh_config_path')
             conf_ssh_card_serial = conf_data.get('ssh_card_serial')
         except:
-            print 'WARNING: Failed to parse config file'
+            print('WARNING: Failed to parse config file')
 
 card_name = None
 card_serial = None
@@ -109,6 +109,7 @@ card_pub_key = None
 try:
     # card_status = subprocess.check_output(['gpg', '--card-status'],
     #     stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+    # card_status = card_status.decode('utf-8')
     # for line in card_status.splitlines():
     #     if line.startswith('Manufacturer') and not card_name:
     #         card_name = line.split(':', 1)[-1].strip()
@@ -118,6 +119,7 @@ try:
     #if card_name and card_serial:
     card_keys = subprocess.check_output(['ssh-add', '-L'],
         stderr=subprocess.PIPE)
+    card_keys = card_keys.decode('utf-8')
     for line in card_keys.splitlines():
         if 'cardno:' in line:
             card_serial = line.split('cardno:', 1)[-1].split()[0].strip()
@@ -141,30 +143,30 @@ if platform.system() == 'Darwin':
 
 if conf_ssh_card_serial:
     if not card_serial:
-        print 'ERROR: Missing Smart Card'
-        print 'If card is connected try running pritunl-ssh reset-gpg'
+        print('ERROR: Missing Smart Card')
+        print('If card is connected try running pritunl-ssh reset-gpg')
         sys.exit(1)
 
     if card_serial != conf_ssh_card_serial:
-        print 'ERROR: Incorrect Smart Card serial'
-        print 'Insert correct card, remove any other Smart Cards'
+        print('ERROR: Incorrect Smart Card serial')
+        print('Insert correct card, remove any other Smart Cards')
         sys.exit(1)
 
     if not card_pub_key:
-        print 'ERROR: Failed to load Smart Card public key'
-        print 'If device is configured, try running pritunl-ssh reset-gpg'
+        print('ERROR: Failed to load Smart Card public key')
+        print('If device is configured, try running pritunl-ssh reset-gpg')
         sys.exit(1)
 
 if not conf_zero_server:
     while True:
-        server = raw_input('Enter Pritunl Zero user hostname: ')
+        server = input('Enter Pritunl Zero user hostname: ')
         if server:
             break
-    server_url = urlparse.urlparse(server)
+    server_url = urllib.parse.urlparse(server)
     conf_zero_server = 'https://%s' % (server_url.netloc or server_url.path)
     changed = True
 
-print 'SERVER: ' + conf_zero_server
+print('SERVER: ' + conf_zero_server)
 
 ask_register_card = False
 if not conf_ssh_card_serial and (not conf_pub_key_path or
@@ -181,17 +183,17 @@ if not conf_ssh_card_serial and (not conf_pub_key_path or
             ssh_names.append(filename)
 
     if not len(ssh_names):
-        print 'ERROR: No SSH keys found, run "ssh-keygen -t ed25519" ' + \
-            'to create a key'
+        print('ERROR: No SSH keys found, run "ssh-keygen -t ed25519" ' +
+            'to create a key')
         sys.exit(1)
 
-    print 'Select SSH key or device:'
+    print('Select SSH key or device:')
 
     for i, ssh_name in enumerate(ssh_names):
-        print '[%d] %s' % (i+1, ssh_name)
+        print('[%d] %s' % (i+1, ssh_name))
 
     while True:
-        key_input = raw_input('Enter number or full path to key: ')
+        key_input = input('Enter number or full path to key: ')
         if key_input:
             break
 
@@ -235,19 +237,20 @@ else:
     base_cert_path_full = os.path.expanduser(base_cert_path)
 
 if conf_ssh_card_serial:
-    print 'SSH_DEVICE: ' + conf_ssh_card_serial
+    print('SSH_DEVICE: ' + conf_ssh_card_serial)
+    pub_key_path_full = None
 else:
     pub_key_path_full = os.path.expanduser(conf_pub_key_path)
 
     if not os.path.exists(pub_key_path_full):
-        print 'ERROR: Selected SSH key does not exist'
+        print('ERROR: Selected SSH key does not exist')
         sys.exit(1)
 
     if not pub_key_path_full.endswith('.pub'):
-        print 'ERROR: SSH key path must end with .pub'
+        print('ERROR: SSH key path must end with .pub')
         sys.exit(1)
 
-    print 'SSH_KEY: ' + conf_pub_key_path
+    print('SSH_KEY: ' + conf_pub_key_path)
 
 if '--port-forward' in sys.argv[1:] or 'port-forward' in sys.argv[1:]:
     ports = sys.argv[-1].split(':')
@@ -284,19 +287,19 @@ if '--alias' in sys.argv[1:] or 'alias' in sys.argv[1:]:
         else:
             bash_profile_data += '\n\n'
 
-    ssh_input = raw_input(
+    ssh_input = input(
         'Enable ssh alias to autorun pritunl-ssh? [Y/n]: ')
     if not ssh_input.lower().startswith('n'):
         bash_profile_modified = True
         bash_profile_data += 'alias ssh="pritunl-ssh; ssh" # pritunl-zero\n'
 
     if bash_profile_modified:
-        print 'BASH_PROFILE: ' + BASH_PROFILE_PATH
+        print('BASH_PROFILE: ' + BASH_PROFILE_PATH)
         with open(bash_profile_path_full, 'w') as bash_profile_file:
             bash_profile_file.write(bash_profile_data)
 
-        print 'Bash profile configured open new shell or run ' + \
-            '"source %s" to update environment' % BASH_PROFILE_PATH
+        print('Bash profile configured open new shell or run ' +
+            '"source %s" to update environment' % BASH_PROFILE_PATH)
 
     sys.exit(0)
 
@@ -304,7 +307,7 @@ if '--clear-strict-host' in sys.argv[1:] or \
         'clear-strict-host' in sys.argv[1:]:
     if os.path.exists(base_cert_path_full):
         os.remove(base_cert_path_full)
-    for i in xrange(100):
+    for i in range(100):
         num_cert_path = base_cert_path_full.replace('.pub', '%02d.pub' % i)
         if os.path.exists(num_cert_path):
             os.remove(num_cert_path)
@@ -323,9 +326,9 @@ if '--clear-strict-host' in sys.argv[1:] or \
                 known_hosts_data += line
 
     if known_hosts_modified:
-        print 'KNOWN_HOSTS: ' + known_hosts_path
+        print('KNOWN_HOSTS: ' + known_hosts_path)
         with open(known_hosts_path_full, 'w') as known_file:
-            os.chmod(known_hosts_path_full, 0600)
+            os.chmod(known_hosts_path_full, 0o600)
             known_file.write(known_hosts_data)
 
     ssh_config_modified = False
@@ -357,19 +360,19 @@ if '--clear-strict-host' in sys.argv[1:] or \
     ssh_config_data = ssh_config_data[:-1]
 
     if ssh_config_modified:
-        print 'SSH_CONFIG: ' + ssh_config_path
+        print('SSH_CONFIG: ' + ssh_config_path)
         with open(ssh_config_path_full, 'w') as config_file:
-            os.chmod(ssh_config_path_full, 0600)
+            os.chmod(ssh_config_path_full, 0o600)
             config_file.write(ssh_config_data)
 
-    print 'Successfully cleared strict host checking configuration'
+    print('Successfully cleared strict host checking configuration')
     sys.exit(0)
 
 if '--clear-bastion-host' in sys.argv[1:] or \
         'clear-bastion-host' in sys.argv[1:]:
     if os.path.exists(base_cert_path_full):
         os.remove(base_cert_path_full)
-    for i in xrange(100):
+    for i in range(100):
         num_cert_path = base_cert_path_full.replace('.pub', '%02d.pub' % i)
         if os.path.exists(num_cert_path):
             os.remove(num_cert_path)
@@ -388,9 +391,9 @@ if '--clear-bastion-host' in sys.argv[1:] or \
                 known_hosts_data += line
 
     if known_hosts_modified:
-        print 'KNOWN_HOSTS: ' + known_hosts_path
+        print('KNOWN_HOSTS: ' + known_hosts_path)
         with open(known_hosts_path_full, 'w') as known_file:
-            os.chmod(known_hosts_path_full, 0600)
+            os.chmod(known_hosts_path_full, 0o600)
             known_file.write(known_hosts_data)
 
     ssh_config_modified = False
@@ -422,18 +425,18 @@ if '--clear-bastion-host' in sys.argv[1:] or \
     ssh_config_data = ssh_config_data[:-1]
 
     if ssh_config_modified:
-        print 'SSH_CONFIG: ' + ssh_config_path
+        print('SSH_CONFIG: ' + ssh_config_path)
         with open(ssh_config_path_full, 'w') as config_file:
-            os.chmod(ssh_config_path_full, 0600)
+            os.chmod(ssh_config_path_full, 0o600)
             config_file.write(ssh_config_data)
 
-    print 'Successfully cleared bastion host configuration'
+    print('Successfully cleared bastion host configuration')
     sys.exit(0)
 
 if '--clear' in sys.argv[1:] or 'clear' in sys.argv[1:]:
     if os.path.exists(base_cert_path_full):
         os.remove(base_cert_path_full)
-    for i in xrange(100):
+    for i in range(100):
         num_cert_path = base_cert_path_full.replace('.pub', '%02d.pub' % i)
         if os.path.exists(num_cert_path):
             os.remove(num_cert_path)
@@ -452,9 +455,9 @@ if '--clear' in sys.argv[1:] or 'clear' in sys.argv[1:]:
                 known_hosts_data += line
 
     if known_hosts_modified:
-        print 'KNOWN_HOSTS: ' + known_hosts_path
+        print('KNOWN_HOSTS: ' + known_hosts_path)
         with open(known_hosts_path_full, 'w') as known_file:
-            os.chmod(known_hosts_path_full, 0600)
+            os.chmod(known_hosts_path_full, 0o600)
             known_file.write(known_hosts_data)
 
     ssh_config_modified = False
@@ -479,12 +482,12 @@ if '--clear' in sys.argv[1:] or 'clear' in sys.argv[1:]:
     ssh_config_data = ssh_config_data[:-1]
 
     if ssh_config_modified:
-        print 'SSH_CONFIG: ' + ssh_config_path
+        print('SSH_CONFIG: ' + ssh_config_path)
         with open(ssh_config_path_full, 'w') as config_file:
-            os.chmod(ssh_config_path_full, 0600)
+            os.chmod(ssh_config_path_full, 0o600)
             config_file.write(ssh_config_data)
 
-    print 'Successfully cleared SSH configuration'
+    print('Successfully cleared SSH configuration')
     sys.exit(0)
 
 if '--info' in sys.argv[1:] or 'info' in sys.argv[1:]:
@@ -494,7 +497,7 @@ if '--info' in sys.argv[1:] or 'info' in sys.argv[1:]:
         subprocess.check_call(['ssh-keygen', '-L', '-f', base_cert_path_full])
         sys.exit(0)
     else:
-        for i in xrange(100):
+        for i in range(100):
             num_cert_path = base_cert_path_full.replace(
                 '.pub', '%02d.pub' % i)
             if os.path.exists(num_cert_path):
@@ -507,11 +510,11 @@ if '--info' in sys.argv[1:] or 'info' in sys.argv[1:]:
     if found:
         sys.exit(0)
     else:
-        print 'ERROR: No SSH certificates available'
+        print('ERROR: No SSH certificates available')
         sys.exit(1)
 
 with open(conf_path, 'w') as conf_file:
-    os.chmod(conf_path, 0600)
+    os.chmod(conf_path, 0o600)
     conf_file.write(json.dumps({
         'server': conf_zero_server,
         'public_key_path': conf_pub_key_path,
@@ -522,7 +525,7 @@ with open(conf_path, 'w') as conf_file:
 
 register_card = False
 if ask_register_card:
-    register_input = raw_input('Register Smart Card? [Y/n]: ')
+    register_input = input('Register Smart Card? [Y/n]: ')
     register_card = not register_input.lower().startswith('n')
 
 if '--register-smart-card' in sys.argv[1:] or \
@@ -530,7 +533,7 @@ if '--register-smart-card' in sys.argv[1:] or \
     device_key = base64.urlsafe_b64encode(card_pub_key)
     device_url = conf_zero_server + '/ssh?device=' + device_key
 
-    print 'OPEN: ' + device_url
+    print('OPEN: ' + device_url)
 
     try:
         subprocess.Popen(
@@ -552,6 +555,7 @@ def check_cert_valid(cert_path):
 
     status = subprocess.check_output(
         ['ssh-keygen', '-L', '-f', cert_path])
+    status = status.decode('utf-8')
 
     cert_valid = True
     for line in status.splitlines():
@@ -574,7 +578,7 @@ if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
             cert_valid = check_cert_valid(base_cert_path_full)
         else:
             cert_valid = False
-            for i in xrange(100):
+            for i in range(100):
                 num_cert_path = base_cert_path_full.replace(
                     '.pub', '%02d.pub' % i)
                 if os.path.exists(num_cert_path):
@@ -586,11 +590,11 @@ if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
                 else:
                     break
     except Exception as exception:
-        print 'WARN: Failed to get certificate expiration'
-        print str(exception)
+        print('WARN: Failed to get certificate expiration')
+        print(str(exception))
 
 if cert_valid:
-    print 'Certificate has not expired'
+    print('Certificate has not expired')
     sys.exit(0)
 
 if conf_ssh_card_serial:
@@ -599,11 +603,11 @@ else:
     with open(pub_key_path_full, 'r') as pub_key_file:
         pub_key_data = pub_key_file.read().strip()
 
-req = urllib2.Request(
+req = urllib.request.Request(
     conf_zero_server + '/ssh/challenge',
     data=json.dumps({
         'public_key': pub_key_data,
-    }),
+    }).encode(),
 )
 req.add_header('Content-Type', 'application/json')
 req.get_method = lambda: 'POST'
@@ -611,10 +615,10 @@ resp_data = ''
 resp_error = None
 status_code = None
 try:
-    resp = urllib2.urlopen(req)
+    resp = urllib.request.urlopen(req)
     resp_data = resp.read()
     status_code = resp.getcode()
-except urllib2.HTTPError as exception:
+except urllib.error.HTTPError as exception:
     status_code = exception.code
     try:
         resp_data = exception.read()
@@ -624,19 +628,19 @@ except urllib2.HTTPError as exception:
 
 if status_code != 200:
     if resp_error:
-        print 'ERROR: ' + resp_error
+        print('ERROR: ' + resp_error)
     else:
-        print 'ERROR: SSH challenge request failed with status %d' % \
-            status_code
+        print('ERROR: SSH challenge request failed with status %d' % \
+            status_code)
         if resp_data:
-            print resp_data.strip()
+            print(resp_data.strip())
     sys.exit(1)
 
 token = json.loads(resp_data)['token']
 
 token_url = conf_zero_server + '/ssh?ssh-token=' + token
 
-print 'OPEN: ' + token_url
+print('OPEN: ' + token_url)
 
 try:
     subprocess.Popen(
@@ -650,13 +654,13 @@ except:
     except:
         pass
 
-for _ in xrange(10):
-    req = urllib2.Request(
+for _ in range(10):
+    req = urllib.request.Request(
         conf_zero_server + '/ssh/challenge',
         data=json.dumps({
             'public_key': pub_key_data,
             'token': token,
-        }),
+        }).encode(),
     )
     req.add_header('Content-Type', 'application/json')
     req.get_method = lambda: 'PUT'
@@ -664,10 +668,10 @@ for _ in xrange(10):
     resp_error = None
     status_code = None
     try:
-        resp = urllib2.urlopen(req)
+        resp = urllib.request.urlopen(req)
         status_code = resp.getcode()
         resp_data = resp.read()
-    except urllib2.HTTPError as exception:
+    except urllib.error.HTTPError as exception:
         status_code = exception.code
         try:
             resp_data = exception.read()
@@ -680,24 +684,24 @@ for _ in xrange(10):
     break
 
 if status_code == 205:
-    print 'ERROR: SSH verification request timed out'
+    print('ERROR: SSH verification request timed out')
     sys.exit(1)
 
 elif status_code == 401:
-    print 'ERROR: SSH verification request was denied'
+    print('ERROR: SSH verification request was denied')
     sys.exit(1)
 
 elif status_code == 404:
-    print 'ERROR: SSH verification request has expired'
+    print('ERROR: SSH verification request has expired')
     sys.exit(1)
 
 elif status_code != 200:
     if resp_error:
-        print 'ERROR: ' + resp_error
+        print('ERROR: ' + resp_error)
     else:
-        print 'ERROR: SSH verification failed with status %d' % status_code
+        print('ERROR: SSH verification failed with status %d' % status_code)
         if resp_data:
-            print resp_data.strip()
+            print(resp_data.strip())
     sys.exit(1)
 
 cert_data = json.loads(resp_data)
@@ -707,7 +711,7 @@ cert_hosts = cert_data.get('hosts')
 
 if os.path.exists(base_cert_path_full):
     os.remove(base_cert_path_full)
-for i in xrange(100):
+for i in range(100):
     num_cert_path = base_cert_path_full.replace('.pub', '%02d.pub' % i)
     if os.path.exists(num_cert_path):
         os.remove(num_cert_path)
@@ -716,16 +720,17 @@ for i in xrange(100):
 
 if len(certificates) < 2:
     with open(base_cert_path_full, 'w') as cert_file:
-        os.chmod(base_cert_path_full, 0600)
+        os.chmod(base_cert_path_full, 0o600)
         cert_file.write('\n'.join(certificates) + '\n')
-    print 'CERTIFICATE: ' + base_cert_path
+    print('CERTIFICATE: ' + base_cert_path)
 else:
     for i, certificate in enumerate(certificates):
         num_cert_path = base_cert_path_full.replace('.pub', '%02d.pub' % i)
         with open(num_cert_path, 'w') as cert_file:
-            os.chmod(num_cert_path, 0600)
+            os.chmod(num_cert_path, 0o600)
             cert_file.write(certificate + '\n')
-        print 'CERTIFICATE: ' + base_cert_path.replace('.pub', '%02d.pub' % i)
+        print('CERTIFICATE: ' + base_cert_path.replace(
+            '.pub', '%02d.pub' % i))
 
 known_hosts_modified = False
 known_hosts_data = ''
@@ -743,9 +748,9 @@ if os.path.exists(known_hosts_path_full):
             known_hosts_data += line
 
 if known_hosts_modified:
-    print 'KNOWN_HOSTS: ' + known_hosts_path
+    print('KNOWN_HOSTS: ' + known_hosts_path)
     with open(known_hosts_path_full, 'w') as known_file:
-        os.chmod(known_hosts_path_full, 0600)
+        os.chmod(known_hosts_path_full, 0o600)
         known_file.write(known_hosts_data)
 
 ssh_config_modified = False
@@ -817,9 +822,9 @@ for cert_host in cert_hosts or []:
             ssh_config_data += '	StrictHostKeyChecking yes\n'
 
 if ssh_config_modified:
-    print 'SSH_CONFIG: ' + ssh_config_path
+    print('SSH_CONFIG: ' + ssh_config_path)
     with open(ssh_config_path_full, 'w') as config_file:
-        os.chmod(ssh_config_path_full, 0600)
+        os.chmod(ssh_config_path_full, 0o600)
         config_file.write(ssh_config_data)
 
-print 'Successfully validated SSH key'
+print('Successfully validated SSH key')
