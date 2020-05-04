@@ -1,16 +1,17 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import os
 import json
-import urllib2
+import urllib.request
+import urllib.parse
+import urllib.error
 import time
-import urlparse
 import sys
 import datetime
 import subprocess
 import threading
 import socket
 import hashlib
-import BaseHTTPServer
+import http.server
 try:
     import boto3
     HAS_BOTO = True
@@ -63,7 +64,7 @@ if '--help' in sys.argv[1:] or 'help' in sys.argv[1:]:
     sys.exit(0)
 
 if '--version' in sys.argv[1:] or 'version' in sys.argv[1:]:
-    print('pritunl-ssh-host v' + VERSION)
+    print(('pritunl-ssh-host v' + VERSION))
     sys.exit(0)
 
 if os.path.isfile(CONF_PATH):
@@ -86,7 +87,7 @@ if os.path.isfile(CONF_PATH):
 
 def write_conf():
     with open(CONF_PATH, 'w') as conf_file:
-        os.chmod(CONF_PATH, 0600)
+        os.chmod(CONF_PATH, 0o600)
         conf_file.write(json.dumps({
             'hostname': conf_hostname,
             'server': conf_server,
@@ -125,7 +126,7 @@ if '--config' in sys.argv[1:] or 'config' in sys.argv[1:]:
         conf_hostname = value
     elif key == 'server':
         if value:
-            server_url = urlparse.urlparse(value)
+            server_url = urllib.parse.urlparse(value)
             value = 'https://%s' % (server_url.netloc or server_url.path)
         conf_server = value
     elif key == 'public-key-path':
@@ -156,14 +157,14 @@ if '--config' in sys.argv[1:] or 'config' in sys.argv[1:]:
         print('WARN: Unknown config option')
         sys.exit(0)
 
-    print('CONFIG: %s=%s' % (key, value))
+    print(('CONFIG: %s=%s' % (key, value)))
 
     write_conf()
 
     sys.exit(0)
 
 if not conf_exists:
-    print('ERROR: Configuration file %r does not exists' % CONF_PATH)
+    print(('ERROR: Configuration file %r does not exists' % CONF_PATH))
     sys.exit(1)
 
 if not conf_server:
@@ -196,11 +197,11 @@ if '--info' in sys.argv[1:] or 'info' in sys.argv[1:]:
     sys.exit(0)
 
 def get_public_addr():
-    req = urllib2.Request(
+    req = urllib.request.Request(
         'https://app.pritunl.com/ip',
     )
     req.get_method = lambda: 'GET'
-    resp = urllib2.urlopen(req, timeout=5)
+    resp = urllib.request.urlopen(req, timeout=5)
     resp_data = resp.read()
     return json.loads(resp_data)['ip']
 
@@ -215,7 +216,7 @@ def get_route53_hash(public_addr):
     return hash.hexdigest()
 
 def set_zone_record(zone_name, host_name, ip_addr, ip_addr6):
-    for i in xrange(3):
+    for i in range(3):
         try:
             _set_zone_record(zone_name, host_name, ip_addr, ip_addr6)
             break
@@ -242,7 +243,7 @@ def _set_zone_record(zone_name, host_name, ip_addr, ip_addr6):
             hosted_zone_name = hosted_zone['Name']
 
     if not hosted_zone_id or not hosted_zone_name:
-        print('ERROR: Failed to find hosted zone ID for %r' % zone_name)
+        print(('ERROR: Failed to find hosted zone ID for %r' % zone_name))
         sys.exit(1)
 
     record_name = host_name + '.' + zone_name + '.'
@@ -368,11 +369,11 @@ if conf_route_53_zone:
     if cur_route53_hash != conf_route_53_hash or \
             cur_time - (conf_route_53_updated or 0) >= 43200:
 
-        print('ROUTE53: %s %s %s' % (
+        print(('ROUTE53: %s %s %s' % (
             hostname + '.' + conf_route_53_zone,
             public_addr,
             conf_public_address6 or '',
-        ))
+        )))
 
         set_zone_record(
             conf_route_53_zone,
@@ -394,6 +395,7 @@ if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
 
             status = subprocess.check_output(
                 ['ssh-keygen', '-L', '-f', cert_path])
+            status = status.decode('utf-8')
 
             cert_valid = True
             for line in status.splitlines():
@@ -402,23 +404,23 @@ if '--renew' not in sys.argv[1:] and 'renew' not in sys.argv[1:]:
                     line = line.split('to')[-1].strip()
                     valid_to = datetime.datetime.strptime(
                         line, '%Y-%m-%dT%H:%M:%S')
-                    print('VALID_TO: %s' % valid_to)
+                    print(('VALID_TO: %s' % valid_to))
                     if cur_date >= valid_to:
                         cert_valid = False
                         break
     except Exception as exception:
         print('WARN: Failed to get certificate expiration')
-        print(str(exception))
+        print((str(exception)))
 
 if cert_valid:
     sys.exit(0)
 
-class Request(BaseHTTPServer.BaseHTTPRequestHandler):
+class Request(http.server.BaseHTTPRequestHandler):
     def send_json_response(self, data, status_code=200):
         self.send_response(status_code)
         self.send_header('Content-type', 'application/json')
         self.end_headers()
-        self.wfile.write(json.dumps(data))
+        self.wfile.write(json.dumps(data).encode())
         self.wfile.close()
 
     def do_GET(self):
@@ -429,7 +431,7 @@ class Request(BaseHTTPServer.BaseHTTPRequestHandler):
         else:
             self.send_response(404)
 
-server = BaseHTTPServer.HTTPServer(
+server = http.server.HTTPServer(
     ('0.0.0.0', 9748),
     Request,
 )
@@ -438,13 +440,13 @@ thread.daemon = True
 thread.start()
 time.sleep(0.5)
 
-req = urllib2.Request(
+req = urllib.request.Request(
     conf_server + '/ssh/host',
     data=json.dumps({
         'tokens': conf_tokens,
         'public_key': public_key,
         'hostname': hostname,
-    }),
+    }).encode(),
 )
 req.add_header('Content-Type', 'application/json')
 req.get_method = lambda: 'POST'
@@ -452,10 +454,10 @@ resp_data = ''
 resp_error = None
 status_code = None
 try:
-    resp = urllib2.urlopen(req)
+    resp = urllib.request.urlopen(req)
     resp_data = resp.read()
     status_code = resp.getcode()
-except urllib2.HTTPError as exception:
+except urllib.error.HTTPError as exception:
     status_code = exception.code
     try:
         resp_data = exception.read()
@@ -465,12 +467,12 @@ except urllib2.HTTPError as exception:
 
 if status_code != 200:
     if resp_error:
-        print('ERROR: ' + resp_error)
+        print(('ERROR: ' + resp_error))
     else:
-        print('ERROR: Failed to renew host certificate with state %d' %
-            status_code)
+        print(('ERROR: Failed to renew host certificate with state %d' %
+            status_code))
         if resp_data:
-            print(resp_data.strip())
+            print((resp_data.strip()))
     sys.exit(1)
 
 certificates = json.loads(resp_data)['certificates']
@@ -496,7 +498,7 @@ if ssh_config_modified:
             ssh_config_data += '\n\n'
     ssh_config_data += ssh_host_cert_line + '\n'
 
-    print('SSH_CONFIG: ' + ssh_conf_path)
+    print(('SSH_CONFIG: ' + ssh_conf_path))
     with open(ssh_conf_path, 'w') as ssh_file:
         ssh_file.write(ssh_config_data)
 
@@ -509,9 +511,9 @@ if ssh_config_modified:
     except:
         pass
 
-print('SSH_CERT: ' + cert_path)
+print(('SSH_CERT: ' + cert_path))
 with open(cert_path, 'w') as ssh_file:
-    os.chmod(cert_path, 0644)
+    os.chmod(cert_path, 0o644)
     ssh_file.write('\n'.join(certificates))
 
 sys.exit(0)
