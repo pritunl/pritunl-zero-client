@@ -17,12 +17,7 @@ CONF_PATH = SSH_DIR + '/pritunl-zero.json'
 BASH_PROFILE_PATH = '~/.bash_profile'
 DEF_KNOWN_HOSTS_PATH = '~/.ssh/known_hosts'
 DEF_SSH_CONF_PATH = '~/.ssh/config'
-
-### parts for handling browser OPEN if running in WSL1 ###
-# example:  BROWSER_PATH = '/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe'
-# example: BROWSER_PATH = '/mnt/c/Users/<<username>>/AppData/Local/Vivaldi/Application/vivaldi.exe'
-BROWSER_PATH = '/mnt/c/Path/to/browser.exe'
-isWSL = str(subprocess.check_output(['uname', '-r']))
+BROWSER_PATH = '/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe'
 
 USAGE = """\
 Usage: pritunl-ssh [command]
@@ -38,10 +33,7 @@ Commands:
   clear-strict-host    Remove strict host checking configuration changes
   clear-bastion-host   Remove bastion host configuration changes
   register-smart-card  Register the current Smart Card with Pritunl Zero
-  gpg-reset            Reset GPG Smart Card agent
-
-Note: Links may not auto-load in your browser if using Microsoft WSL
-  set BROWSER_PATH variable in /usr/bin/pritunl-ssh (example provided)"""
+  gpg-reset            Reset GPG Smart Card agent"""
 
 conf_zero_server = None
 conf_pub_key_path = None
@@ -51,6 +43,14 @@ conf_ssh_card_serial = None
 ssh_dir_path = os.path.expanduser(SSH_DIR)
 conf_path = os.path.expanduser(CONF_PATH)
 changed = False
+
+try:
+    uname = subprocess.check_output(['uname', '-r'],
+        stderr=subprocess.PIPE)
+    uname = uname.decode('utf-8')
+    microsoft_wsl = 'microsoft' in uname.lower()
+except:
+    microsoft_wsl = False
 
 if '--help' in sys.argv[1:] or 'help' in sys.argv[1:]:
     print(USAGE)
@@ -552,11 +552,9 @@ if '--register-smart-card' in sys.argv[1:] or \
         )
     except:
         try:
-            if "Microsoft" in isWSL and os.path.isfile(BROWSER_PATH):
+            if microsoft_wsl and os.path.isfile(BROWSER_PATH):
                 subprocess.Popen([BROWSER_PATH, device_url])
             else:
-                if "Microsoft" in isWSL:
-                    print('Default browser not defined for WSL')
                 subprocess.Popen(['open', device_url])
         except:
             pass
@@ -664,11 +662,9 @@ try:
     )
 except:
     try:
-        if "Microsoft" in isWSL and os.path.isfile(BROWSER_FILE):
+        if microsoft_wsl and os.path.isfile(BROWSER_PATH):
             subprocess.Popen([BROWSER_PATH, token_url])
         else:
-            if "Microsoft" in isWSL:
-                print('Default browser not defined for WSL')
             subprocess.Popen(['open', token_url])
     except:
         pass
