@@ -539,7 +539,7 @@ if ask_register_card:
 
 if '--register-smart-card' in sys.argv[1:] or \
         'register-smart-card' in sys.argv[1:] or register_card:
-    device_key = base64.urlsafe_b64encode(card_pub_key)
+    device_key = base64.urlsafe_b64encode(card_pub_key).decode('utf-8')
     device_url = conf_zero_server + '/ssh?device=' + device_key
 
     print('OPEN: ' + device_url)
