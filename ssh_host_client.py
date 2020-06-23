@@ -202,7 +202,7 @@ def get_public_addr():
     )
     req.get_method = lambda: 'GET'
     resp = urllib.request.urlopen(req, timeout=5)
-    resp_data = resp.read()
+    resp_data = resp.read().decode('utf-8')
     return json.loads(resp_data)['ip']
 
 def get_route53_hash(public_addr):
@@ -455,12 +455,12 @@ resp_error = None
 status_code = None
 try:
     resp = urllib.request.urlopen(req)
-    resp_data = resp.read()
+    resp_data = resp.read().decode('utf-8')
     status_code = resp.getcode()
 except urllib.error.HTTPError as exception:
     status_code = exception.code
     try:
-        resp_data = exception.read()
+        resp_data = exception.read().decode('utf-8')
         resp_error = str(json.loads(resp_data)['error_msg'])
     except:
         pass

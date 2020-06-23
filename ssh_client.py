@@ -629,7 +629,7 @@ resp_error = None
 status_code = None
 try:
     resp = urllib.request.urlopen(req)
-    resp_data = resp.read()
+    resp_data = resp.read().decode('utf-8')
     status_code = resp.getcode()
 except urllib.error.HTTPError as exception:
     status_code = exception.code
@@ -686,11 +686,11 @@ for _ in range(10):
     try:
         resp = urllib.request.urlopen(req)
         status_code = resp.getcode()
-        resp_data = resp.read()
+        resp_data = resp.read().decode('utf-8')
     except urllib.error.HTTPError as exception:
         status_code = exception.code
         try:
-            resp_data = exception.read()
+            resp_data = exception.read().decode('utf-8')
             resp_error = str(json.loads(resp_data)['error_msg'])
         except:
             pass
