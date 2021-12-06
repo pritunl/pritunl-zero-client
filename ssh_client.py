@@ -799,7 +799,7 @@ if ssh_config_data and not ssh_config_data.endswith('\n\n'):
     else:
         ssh_config_data += '\n\n'
 
-if conf_ssh_card_serial or len(certificates) > 1:
+if conf_ssh_card_serial or len(certificates):
     ssh_config_modified = True
 
     if len(certificates) < 2:
