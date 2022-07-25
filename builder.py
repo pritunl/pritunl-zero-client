@@ -263,6 +263,11 @@ if cmd == 'set-version':
     subprocess.check_call(['git', 'commit', '-S', '-m', 'Create new release'])
     subprocess.check_call(['git', 'push'])
 
+    # Create tag
+    subprocess.check_call(['git', 'tag', new_version])
+    subprocess.check_call(['git', 'push', '--tags'])
+    time.sleep(1)
+
 
     # Create release
     response = requests.post(
@@ -324,7 +329,7 @@ if cmd == 'build' or cmd == 'build-test' or cmd == 'build-upload':
     archive_path = os.path.join(os.path.sep, 'tmp', archive_name)
     if os.path.isfile(archive_path):
         os.remove(archive_path)
-    wget('https://github.com/%s/%s/archive/%s' % (
+    wget('https://github.com/%s/%s/archive/refs/tags/%s' % (
         github_owner, REPO_NAME, archive_name),
         output=archive_name,
         cwd=os.path.join(os.path.sep, 'tmp'),
