@@ -17,7 +17,7 @@ CONF_PATH = SSH_DIR + '/pritunl-zero.json'
 BASH_PROFILE_PATH = '~/.bash_profile'
 DEF_KNOWN_HOSTS_PATH = '~/.ssh/known_hosts'
 DEF_SSH_CONF_PATH = '~/.ssh/config'
-BROWSER_PATH = '/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe'
+BROWSER_PATH = r'/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe'
 
 USAGE = """\
 Usage: pritunl-ssh [command]
