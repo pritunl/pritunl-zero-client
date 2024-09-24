@@ -68,7 +68,7 @@ def open_browser(url):
             elif platform.system() == "Linux":
                 subprocess.Popen(['sensible-browser', url])
             else:
-                print("unknown platform: " + platform.system())
+                print("unsupported platform: " + platform.system())
                 sys.exit(1)
         except:
             print("unable to open browser, please open the url manually")
