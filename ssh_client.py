@@ -537,27 +537,27 @@ if ask_register_card:
     register_card = not register_input.lower().startswith('n')
 
 def open_browser(url):
-    print('OPEN: ' + token_url)
+    print('OPEN: ' + url)
 
     try:
         subprocess.Popen(
-            ['xdg-open', token_url],
+            ['xdg-open', url],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
     except:
         try:
             if microsoft_wsl or platform.system() == 'Windows':
-                subprocess.Popen(['powershell.exe', '/c', 'start', token_url])
+                subprocess.Popen(['powershell.exe', '/c', 'start', url])
             elif platform.system() == "Darwin":
-                subprocess.Popen(['open', token_url])
+                subprocess.Popen(['open', url])
             elif platform.system() == "Linux":
-                subprocess.Popen(['sensible-browser', token_url])
+                subprocess.Popen(['sensible-browser', url])
             else:
                 print("unknown platform: " + platform.system())
                 sys.exit(1)
         except:
-            print("unable to open browser, please open the token url manually")
+            print("unable to open browser, please open the url manually")
             pass
 
 
