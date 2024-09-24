@@ -10,3 +10,4 @@ Thumbs.db
 *.egg
 *.egg-info
 build_keys.json
+.vscode

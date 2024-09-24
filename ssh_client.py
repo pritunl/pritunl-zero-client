@@ -17,7 +17,6 @@ CONF_PATH = SSH_DIR + '/pritunl-zero.json'
 BASH_PROFILE_PATH = '~/.bash_profile'
 DEF_KNOWN_HOSTS_PATH = '~/.ssh/known_hosts'
 DEF_SSH_CONF_PATH = '~/.ssh/config'
-BROWSER_PATH = r'/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe'
 
 USAGE = """\
 Usage: pritunl-ssh [command]
@@ -537,29 +536,38 @@ if ask_register_card:
     register_input = input('Register Smart Card? [Y/n]: ')
     register_card = not register_input.lower().startswith('n')
 
+def open_browser(url):
+    print('OPEN: ' + token_url)
+
+    try:
+        subprocess.Popen(
+            ['xdg-open', token_url],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except:
+        try:
+            if microsoft_wsl or platform.system() == 'Windows':
+                subprocess.Popen(['powershell.exe', '/c', 'start', token_url])
+            elif platform.system() == "Darwin":
+                subprocess.Popen(['open', token_url])
+            elif platform.system() == "Linux":
+                subprocess.Popen(['sensible-browser', token_url])
+            else:
+                print("unknown platform: " + platform.system())
+                sys.exit(1)
+        except:
+            print("unable to open browser, please open the token url manually")
+            pass
+
+
 if '--register-smart-card' in sys.argv[1:] or \
         'register-smart-card' in sys.argv[1:] or register_card:
     device_key = base64.urlsafe_b64encode(
         card_pub_key.encode()).decode('utf-8')
     device_url = conf_zero_server + '/ssh?device=' + device_key
 
-    print('OPEN: ' + device_url)
-
-    try:
-        subprocess.Popen(
-            ['xdg-open', device_url],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-    except:
-        try:
-            if microsoft_wsl and os.path.isfile(BROWSER_PATH):
-                subprocess.Popen([BROWSER_PATH, device_url])
-            else:
-                subprocess.Popen(['open', device_url])
-        except:
-            pass
-
+    open_browser(device_url)
     exit(0)
 
 def check_cert_valid(cert_path):
@@ -652,23 +660,7 @@ if status_code != 200:
 token = json.loads(resp_data)['token']
 
 token_url = conf_zero_server + '/ssh?ssh-token=' + token
-
-print('OPEN: ' + token_url)
-
-try:
-    subprocess.Popen(
-        ['xdg-open', token_url],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-except:
-    try:
-        if microsoft_wsl and os.path.isfile(BROWSER_PATH):
-            subprocess.Popen([BROWSER_PATH, token_url])
-        else:
-            subprocess.Popen(['open', token_url])
-    except:
-        pass
+open_browser(token_url)
 
 for _ in range(10):
     req = urllib.request.Request(
