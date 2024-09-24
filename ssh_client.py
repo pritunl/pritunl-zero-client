@@ -43,13 +43,37 @@ ssh_dir_path = os.path.expanduser(SSH_DIR)
 conf_path = os.path.expanduser(CONF_PATH)
 changed = False
 
-try:
-    uname = subprocess.check_output(['uname', '-r'],
-        stderr=subprocess.PIPE)
-    uname = uname.decode('utf-8')
-    microsoft_wsl = 'microsoft' in uname.lower()
-except:
-    microsoft_wsl = False
+def open_browser(url):
+    try:
+        uname = subprocess.check_output(['uname', '-r'],
+            stderr=subprocess.PIPE)
+        uname = uname.decode('utf-8')
+        microsoft_wsl = 'microsoft' in uname.lower()
+    except:
+        microsoft_wsl = False
+
+    print('OPEN: ' + url)
+    try:
+        subprocess.Popen(
+            ['xdg-open', url],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except:
+        try:
+            if microsoft_wsl or platform.system() == 'Windows':
+                subprocess.Popen(['powershell.exe', '/c', 'start', url])
+            elif platform.system() == "Darwin":
+                subprocess.Popen(['open', url])
+            elif platform.system() == "Linux":
+                subprocess.Popen(['sensible-browser', url])
+            else:
+                print("unknown platform: " + platform.system())
+                sys.exit(1)
+        except:
+            print("unable to open browser, please open the url manually")
+            pass
+
 
 if '--help' in sys.argv[1:] or 'help' in sys.argv[1:]:
     print(USAGE)
@@ -535,31 +559,6 @@ register_card = False
 if ask_register_card:
     register_input = input('Register Smart Card? [Y/n]: ')
     register_card = not register_input.lower().startswith('n')
-
-def open_browser(url):
-    print('OPEN: ' + url)
-
-    try:
-        subprocess.Popen(
-            ['xdg-open', url],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-    except:
-        try:
-            if microsoft_wsl or platform.system() == 'Windows':
-                subprocess.Popen(['powershell.exe', '/c', 'start', url])
-            elif platform.system() == "Darwin":
-                subprocess.Popen(['open', url])
-            elif platform.system() == "Linux":
-                subprocess.Popen(['sensible-browser', url])
-            else:
-                print("unknown platform: " + platform.system())
-                sys.exit(1)
-        except:
-            print("unable to open browser, please open the url manually")
-            pass
-
 
 if '--register-smart-card' in sys.argv[1:] or \
         'register-smart-card' in sys.argv[1:] or register_card:
