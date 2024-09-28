@@ -11,7 +11,7 @@ import base64
 import time
 import platform
 
-VERSION = '1.0.3219.78'
+VERSION = '1.0.3231.6'
 SSH_DIR = '~/.ssh'
 CONF_PATH = SSH_DIR + '/pritunl-zero.json'
 BASH_PROFILE_PATH = '~/.bash_profile'
@@ -61,17 +61,17 @@ def open_browser(url):
         )
     except:
         try:
-            if microsoft_wsl or platform.system() == 'Windows':
+            if platform.system() == 'Windows' or microsoft_wsl:
                 subprocess.Popen(['powershell.exe', '/c', 'start', url])
             elif platform.system() == "Darwin":
                 subprocess.Popen(['open', url])
             elif platform.system() == "Linux":
                 subprocess.Popen(['sensible-browser', url])
             else:
-                print("unsupported platform: " + platform.system())
+                print("Unsupported platform: " + platform.system())
                 sys.exit(1)
         except:
-            print("unable to open browser, please open the url manually")
+            print("Failed to open browser, open the url manually")
             pass
 
 
