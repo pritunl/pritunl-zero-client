@@ -11,6 +11,8 @@ import subprocess
 import threading
 import socket
 import hashlib
+import base64
+import re
 import http.server
 try:
     import boto3
@@ -22,6 +24,11 @@ VERSION = '1.0.3231.6'
 CONF_PATH = '/etc/pritunl-ssh-host.json'
 DEF_SSH_CONF_PATH = '/etc/ssh/sshd_config'
 DEF_PUB_KEY_CONF_PATH = '/etc/ssh/ssh_host_rsa_key.pub'
+MAX_CERT_ENTRIES = 100
+MAX_LINE_LEN = 16384
+PRINTABLE_RE = re.compile(r'^[\x20-\x7e]+$')
+CERT_TYPE_RE = re.compile(r'^[a-z][a-z0-9\-]*-cert-v\d{2}@openssh\.com$')
+BASE64_RE = re.compile(r'^[A-Za-z0-9+/]+={0,2}$')
 
 USAGE = """\
 Usage: pritunl-ssh-host [command]
@@ -114,6 +121,77 @@ def check_call_silent(*args, **kwargs):
     if return_code:
         cmd = kwargs.get('args', args[0])
         raise subprocess.CalledProcessError(return_code, cmd)
+
+def sanitize_error_msg(msg):
+    msg = str(msg)
+    return ''.join(c for c in msg if '\x20' <= c <= '\x7e')[:MAX_LINE_LEN]
+
+def parse_key_blob(blob_data):
+    if not blob_data or len(blob_data) % 4 != 0 or \
+            not BASE64_RE.match(blob_data):
+        return None
+
+    try:
+        blob = base64.b64decode(blob_data)
+    except:
+        return None
+
+    if len(blob) < 8:
+        return None
+
+    type_len = int.from_bytes(blob[:4], 'big')
+    if type_len < 1 or type_len > 64 or len(blob) < 4 + type_len:
+        return None
+
+    try:
+        return blob[4:4 + type_len].decode('utf-8')
+    except:
+        return None
+
+def sanitize_certificate(cert_data):
+    if not isinstance(cert_data, str):
+        return None
+
+    cert = cert_data.strip()
+    if not cert or len(cert) > MAX_LINE_LEN or not PRINTABLE_RE.match(cert):
+        return None
+
+    parts = cert.split()
+    if len(parts) < 2:
+        return None
+
+    cert_type = parts[0]
+    if not CERT_TYPE_RE.match(cert_type):
+        return None
+
+    if parse_key_blob(parts[1]) != cert_type:
+        return None
+
+    return ' '.join(parts)
+
+def validate_certificates(cert_data):
+    if not isinstance(cert_data, dict):
+        print('ERROR: Invalid certificate response received from server')
+        sys.exit(1)
+
+    certificates = []
+    certs_data = cert_data.get('certificates') or []
+    if not isinstance(certs_data, list) or \
+            len(certs_data) > MAX_CERT_ENTRIES:
+        print('ERROR: Invalid certificates received from server')
+        sys.exit(1)
+    for cert_item in certs_data:
+        cert = sanitize_certificate(cert_item)
+        if not cert:
+            print('ERROR: Invalid certificate received from server')
+            sys.exit(1)
+        certificates.append(cert)
+
+    if not certificates:
+        print('ERROR: No certificates received from server')
+        sys.exit(1)
+
+    return certificates
 
 if '--config' in sys.argv[1:] or 'config' in sys.argv[1:]:
     key = sys.argv[2]
@@ -461,7 +539,7 @@ except urllib.error.HTTPError as exception:
     status_code = exception.code
     try:
         resp_data = exception.read().decode('utf-8')
-        resp_error = str(json.loads(resp_data)['error_msg'])
+        resp_error = sanitize_error_msg(json.loads(resp_data)['error_msg'])
     except:
         pass
 
@@ -472,10 +550,16 @@ if status_code != 200:
         print(('ERROR: Failed to renew host certificate with state %d' %
             status_code))
         if resp_data:
-            print((resp_data.strip()))
+            print((sanitize_error_msg(resp_data.strip())))
     sys.exit(1)
 
-certificates = json.loads(resp_data)['certificates']
+try:
+    cert_data = json.loads(resp_data)
+except:
+    print('ERROR: Failed to parse certificate response')
+    sys.exit(1)
+
+certificates = validate_certificates(cert_data)
 
 ssh_host_cert_line = 'HostCertificate ' + cert_path
 ssh_config_data = ''
