@@ -8,6 +8,7 @@ import subprocess
 import sys
 import datetime
 import base64
+import re
 import time
 import platform
 
@@ -73,6 +74,204 @@ def open_browser(url):
         except:
             print("Failed to open browser, open the url manually")
             pass
+
+MAX_CERT_ENTRIES = 100
+MAX_LINE_LEN = 16384
+MAX_PATTERN_LEN = 2048
+MAX_TOKEN_LEN = 256
+
+PRINTABLE_RE = re.compile(r'^[\x20-\x7e]+$')
+CERT_TYPE_RE = re.compile(r'^[a-z][a-z0-9\-]*-cert-v\d{2}@openssh\.com$')
+KEY_TYPE_RE = re.compile(r'^[a-z][a-z0-9\-]*(@[a-z0-9\-]+(\.[a-z0-9\-]+)*)?$')
+BASE64_RE = re.compile(r'^[A-Za-z0-9+/]+={0,2}$')
+KNOWN_HOSTS_PATTERN_RE = re.compile(r'^[A-Za-z0-9.\-_*?!,:\[\]]+$')
+HOST_PATTERN_RE = re.compile(r'^[A-Za-z0-9.\-_*?!,:\[\] ]+$')
+PROXY_HOST_RE = re.compile(r'^[A-Za-z0-9.\-_@:\[\],%+]+$')
+TOKEN_RE = re.compile(r'^[A-Za-z0-9\-_=.]+$')
+
+def sanitize_error_msg(msg):
+    msg = str(msg)
+    return ''.join(c for c in msg if '\x20' <= c <= '\x7e')[:MAX_LINE_LEN]
+
+def parse_key_blob(blob_data):
+    if not blob_data or len(blob_data) % 4 != 0 or \
+            not BASE64_RE.match(blob_data):
+        return None
+
+    try:
+        blob = base64.b64decode(blob_data)
+    except:
+        return None
+
+    if len(blob) < 8:
+        return None
+
+    type_len = int.from_bytes(blob[:4], 'big')
+    if type_len < 1 or type_len > 64 or len(blob) < 4 + type_len:
+        return None
+
+    try:
+        return blob[4:4 + type_len].decode('utf-8')
+    except:
+        return None
+
+def sanitize_certificate(cert_data):
+    if not isinstance(cert_data, str):
+        return None
+
+    cert = cert_data.strip()
+    if not cert or len(cert) > MAX_LINE_LEN or not PRINTABLE_RE.match(cert):
+        return None
+
+    parts = cert.split()
+    if len(parts) < 2:
+        return None
+
+    cert_type = parts[0]
+    if not CERT_TYPE_RE.match(cert_type):
+        return None
+
+    if parse_key_blob(parts[1]) != cert_type:
+        return None
+
+    return ' '.join(parts)
+
+def sanitize_cert_authority(authority_data):
+    if not isinstance(authority_data, str):
+        return None
+
+    authority = authority_data.strip()
+    if not authority or len(authority) > MAX_LINE_LEN or \
+            not PRINTABLE_RE.match(authority):
+        return None
+
+    parts = authority.split()
+    if len(parts) < 4:
+        return None
+
+    if parts[0] != '@cert-authority':
+        return None
+
+    if len(parts[1]) > MAX_PATTERN_LEN or \
+            not KNOWN_HOSTS_PATTERN_RE.match(parts[1]):
+        return None
+
+    key_type = parts[2]
+    if not KEY_TYPE_RE.match(key_type):
+        return None
+
+    if parse_key_blob(parts[3]) != key_type:
+        return None
+
+    return ' '.join(parts)
+
+def sanitize_host_pattern(pattern_data):
+    if not isinstance(pattern_data, str):
+        return None
+
+    pattern = pattern_data.strip()
+    if not pattern or len(pattern) > MAX_PATTERN_LEN or \
+            not HOST_PATTERN_RE.match(pattern):
+        return None
+
+    return ' '.join(pattern.split())
+
+def sanitize_proxy_host(proxy_data):
+    if not isinstance(proxy_data, str):
+        return None
+
+    proxy_host = proxy_data.strip()
+    if not proxy_host or len(proxy_host) > MAX_PATTERN_LEN or \
+            not PROXY_HOST_RE.match(proxy_host):
+        return None
+
+    return proxy_host
+
+def sanitize_host(host_data):
+    if not isinstance(host_data, dict):
+        return None
+
+    host = {
+        'domain': '',
+        'matches': [],
+        'strict_host_checking':
+            host_data.get('strict_host_checking') is True,
+        'strict_bastion_checking':
+            host_data.get('strict_bastion_checking') is True,
+        'proxy_host': '',
+    }
+
+    if host_data.get('domain'):
+        host['domain'] = sanitize_host_pattern(host_data.get('domain'))
+        if not host['domain']:
+            return None
+
+    if host_data.get('matches'):
+        matches = host_data.get('matches')
+        if not isinstance(matches, list) or \
+                len(matches) > MAX_CERT_ENTRIES:
+            return None
+
+        for match_data in matches:
+            match = sanitize_host_pattern(match_data)
+            if not match:
+                return None
+            host['matches'].append(match)
+
+    if host_data.get('proxy_host'):
+        host['proxy_host'] = sanitize_proxy_host(
+            host_data.get('proxy_host'))
+        if not host['proxy_host']:
+            return None
+
+    return host
+
+def validate_cert_data(cert_data):
+    if not isinstance(cert_data, dict):
+        print('ERROR: Invalid certificate response received from server')
+        sys.exit(1)
+
+    certificates = []
+    certs_data = cert_data.get('certificates') or []
+    if not isinstance(certs_data, list) or \
+            len(certs_data) > MAX_CERT_ENTRIES:
+        print('ERROR: Invalid certificates received from server')
+        sys.exit(1)
+    for cert_item in certs_data:
+        cert = sanitize_certificate(cert_item)
+        if not cert:
+            print('ERROR: Invalid certificate received from server')
+            sys.exit(1)
+        certificates.append(cert)
+
+    cert_authorities = []
+    authorities_data = cert_data.get('certificate_authorities') or []
+    if not isinstance(authorities_data, list) or \
+            len(authorities_data) > MAX_CERT_ENTRIES:
+        print('ERROR: Invalid certificate authorities received from server')
+        sys.exit(1)
+    for authority_item in authorities_data:
+        authority = sanitize_cert_authority(authority_item)
+        if not authority:
+            print('ERROR: Invalid certificate authority received ' +
+                'from server')
+            sys.exit(1)
+        cert_authorities.append(authority)
+
+    cert_hosts = []
+    hosts_data = cert_data.get('hosts') or []
+    if not isinstance(hosts_data, list) or \
+            len(hosts_data) > MAX_CERT_ENTRIES:
+        print('ERROR: Invalid hosts received from server')
+        sys.exit(1)
+    for host_item in hosts_data:
+        host = sanitize_host(host_item)
+        if not host:
+            print('ERROR: Invalid host received from server')
+            sys.exit(1)
+        cert_hosts.append(host)
+
+    return certificates, cert_authorities, cert_hosts
 
 
 if '--help' in sys.argv[1:] or 'help' in sys.argv[1:]:
@@ -642,7 +841,7 @@ except urllib.error.HTTPError as exception:
     status_code = exception.code
     try:
         resp_data = exception.read()
-        resp_error = str(json.loads(resp_data)['error_msg'])
+        resp_error = sanitize_error_msg(json.loads(resp_data)['error_msg'])
     except:
         pass
 
@@ -653,10 +852,15 @@ if status_code != 200:
         print('ERROR: SSH challenge request failed with status %d' % \
             status_code)
         if resp_data:
-            print(resp_data.strip())
+            print(sanitize_error_msg(resp_data.strip()))
     sys.exit(1)
 
 token = json.loads(resp_data)['token']
+
+if not isinstance(token, str) or not token or \
+        len(token) > MAX_TOKEN_LEN or not TOKEN_RE.match(token):
+    print('ERROR: Invalid token received from server')
+    sys.exit(1)
 
 token_url = conf_zero_server + '/ssh?ssh-token=' + token
 open_browser(token_url)
@@ -682,7 +886,8 @@ for _ in range(10):
         status_code = exception.code
         try:
             resp_data = exception.read().decode('utf-8')
-            resp_error = str(json.loads(resp_data)['error_msg'])
+            resp_error = sanitize_error_msg(
+                json.loads(resp_data)['error_msg'])
         except:
             pass
 
@@ -708,13 +913,20 @@ elif status_code != 200:
     else:
         print('ERROR: SSH verification failed with status %d' % status_code)
         if resp_data:
-            print(resp_data.strip())
+            print(sanitize_error_msg(resp_data.strip()))
     sys.exit(1)
 
-cert_data = json.loads(resp_data)
-certificates = cert_data['certificates']
-cert_authorities = cert_data.get('certificate_authorities')
-cert_hosts = cert_data.get('hosts')
+try:
+    cert_data = json.loads(resp_data)
+except:
+    print('ERROR: Failed to parse certificate response')
+    sys.exit(1)
+
+certificates, cert_authorities, cert_hosts = validate_cert_data(cert_data)
+
+if cert_data.get('token') != token:
+    print('ERROR: Token mismatch in certificate response')
+    sys.exit(1)
 
 if os.path.exists(base_cert_path_full):
     os.remove(base_cert_path_full)
@@ -784,24 +996,20 @@ if os.path.exists(ssh_config_path_full):
 
 ssh_config_data = ssh_config_data[:-1]
 
-if ssh_config_data and not ssh_config_data.endswith('\n\n'):
-    if ssh_config_data.endswith('\n'):
-        ssh_config_data += '\n'
-    else:
-        ssh_config_data += '\n\n'
-
+cert_lines = ''
 if conf_ssh_card_serial or len(certificates):
     ssh_config_modified = True
 
     if len(certificates) < 2:
-        ssh_config_data += '# pritunl-zero\nCertificateFile %s\n' % \
+        cert_lines += '# pritunl-zero\nCertificateFile %s\n' % \
             base_cert_path
     else:
         for i in range(len(certificates)):
             num_cert_path = base_cert_path.replace('.pub', '%02d.pub' % i)
-            ssh_config_data += '# pritunl-zero\nCertificateFile %s\n' % \
+            cert_lines += '# pritunl-zero\nCertificateFile %s\n' % \
                 num_cert_path
 
+host_blocks = ''
 for cert_host in cert_hosts or []:
     if cert_host['strict_host_checking'] or cert_host['proxy_host']:
         ssh_config_modified = True
@@ -813,20 +1021,35 @@ for cert_host in cert_hosts or []:
             matches = [cert_host['domain']]
 
         for match in matches:
-            ssh_config_data += '# pritunl-zero\nHost %s\n' % match
+            host_blocks += '# pritunl-zero\nHost %s\n' % match
 
             if cert_host['strict_host_checking']:
-                ssh_config_data += '	StrictHostKeyChecking yes\n'
+                host_blocks += '	StrictHostKeyChecking yes\n'
 
             if cert_host['proxy_host']:
-                ssh_config_data += '	ProxyJump %s\n' % \
+                host_blocks += '	ProxyJump %s\n' % \
                     cert_host['proxy_host']
 
         if cert_host['proxy_host'] and (cert_host['strict_host_checking'] or
                 cert_host.get('strict_bastion_checking')):
-            ssh_config_data += '# pritunl-zero\nHost %s\n' % \
+            host_blocks += '# pritunl-zero\nHost %s\n' % \
                 cert_host['proxy_host'].split('@', 1)[-1].split(':', 1)[0]
-            ssh_config_data += '	StrictHostKeyChecking yes\n'
+            host_blocks += '	StrictHostKeyChecking yes\n'
+
+if cert_lines:
+    ssh_config_data = ssh_config_data.lstrip('\n')
+    if ssh_config_data:
+        ssh_config_data = cert_lines + '\n' + ssh_config_data
+    else:
+        ssh_config_data = cert_lines
+
+if host_blocks:
+    if ssh_config_data and not ssh_config_data.endswith('\n\n'):
+        if ssh_config_data.endswith('\n'):
+            ssh_config_data += '\n'
+        else:
+            ssh_config_data += '\n\n'
+    ssh_config_data += host_blocks
 
 if ssh_config_modified:
     print('SSH_CONFIG: ' + ssh_config_path)
